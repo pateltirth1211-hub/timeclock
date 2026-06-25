@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>busyANT Time Clock</title>
+<style>
+  :root{
+    --orange:#F47B20; --black:#1a1a1a; --green:#2e7d32;
+    --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e6e6; --bg:#faf7f3; --card:#ffffff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--ink);
+    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;
+  }
+  .app{width:100%; max-width:460px}
+  .brand{text-align:center; margin-bottom:22px}
+  .brand h1{margin:0; font-size:30px; font-weight:800; letter-spacing:-.5px}
+  .brand h1 .ant{color:var(--orange)}
+  .brand p{margin:4px 0 0; color:var(--muted); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:20px; padding:26px; box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .clock-now{text-align:center; font-variant-numeric:tabular-nums; font-size:15px; color:var(--muted); margin-bottom:18px; font-weight:600}
+
+  /* PIN screen */
+  .pin-display{display:flex; justify-content:center; gap:14px; margin:6px 0 22px}
+  .pin-dot{width:16px; height:16px; border-radius:50%; border:2px solid var(--line); background:transparent; transition:.15s}
+  .pin-dot.filled{background:var(--orange); border-color:var(--orange)}
+  .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .key{
+    height:68px; border:none; border-radius:16px; background:#f3efe9; color:var(--ink);
+    font-size:26px; font-weight:700; cursor:pointer; transition:.1s; font-variant-numeric:tabular-nums;
+  }
+  .key:active{transform:scale(.96); background:#eae4db}
+  .key.ghost{background:transparent}
+  .key.action{background:var(--black); color:#fff; font-size:18px; font-weight:700}
+  .key.action:active{background:#000}
+
+  /* Status screen */
+  .greet{text-align:center; margin-bottom:4px; font-size:14px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:1px}
+  .who{text-align:center; font-size:28px; font-weight:800; margin:0 0 4px}
+  .state-pill{display:block; width:fit-content; margin:0 auto 22px; padding:6px 16px; border-radius:999px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.5px}
+  .state-working{background:#e7f3e8; color:var(--green)}
+  .state-break{background:#fff3e0; color:var(--orange)}
+  .state-out{background:#f0f0f0; color:var(--muted)}
+  .actions{display:flex; flex-direction:column; gap:12px}
+  .btn{border:none; border-radius:16px; padding:20px; font-size:19px; font-weight:800; cursor:pointer; transition:.1s; letter-spacing:.3px}
+  .btn:active{transform:scale(.98)}
+  .btn-in{background:var(--green); color:#fff}
+  .btn-out{background:var(--black); color:#fff}
+  .btn-break{background:var(--orange); color:#fff}
+  .btn-endbreak{background:var(--green); color:#fff}
+  .btn-ghost{background:transparent; color:var(--muted); font-weight:700; font-size:15px; padding:12px}
+
+  /* camera */
+  video,canvas{display:none}
+
+  /* toast */
+  .toast{
+    position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(120px);
+    background:var(--black); color:#fff; padding:16px 26px; border-radius:14px; font-weight:700; font-size:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25); transition:transform .3s cubic-bezier(.2,.9,.3,1); max-width:90vw; text-align:center;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast.err{background:#c62828}
+  .toast.ok{background:var(--green)}
+
+  .spinner{display:inline-block; width:18px; height:18px; border:3px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .ver{text-align:center; margin-top:16px; font-size:11px; color:#bdbdbd}
+  .ver a{color:#bdbdbd; text-decoration:underline; cursor:pointer}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="brand">
+    <h1>busy<span class="ant">ANT</span></h1>
+    <p>Time Clock</p>
+  </div>
+
+  <div class="card">
+    <div class="clock-now" id="liveClock">—</div>
+
+    <!-- PIN screen -->
+    <div id="pinScreen">
+      <div class="pin-display" id="pinDisplay">
+        <div class="pin-dot"></div><div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div>
+      </div>
+      <div class="keys">
+        <button class="key" data-k="1">1</button>
+        <button class="key" data-k="2">2</button>
+        <button class="key" data-k="3">3</button>
+        <button class="key" data-k="4">4</button>
+        <button class="key" data-k="5">5</button>
+        <button class="key" data-k="6">6</button>
+        <button class="key" data-k="7">7</button>
+        <button class="key" data-k="8">8</button>
+        <button class="key" data-k="9">9</button>
+        <button class="key ghost"></button>
+        <button class="key" data-k="0">0</button>
+        <button class="key action" data-k="del">⌫</button>
+      </div>
+    </div>
+
+    <!-- Status screen -->
+    <div id="statusScreen" class="hidden">
+      <div class="greet">Welcome</div>
+      <p class="who" id="whoName">—</p>
+      <span class="state-pill" id="statePill">—</span>
+      <div class="actions" id="actionButtons"></div>
+      <button class="btn btn-ghost" id="doneBtn">Done</button>
+    </div>
+  </div>
+
+  <div class="ver">v1.0 · <a id="refreshLink">refresh</a></div>
+</div>
+
+<video id="cam" autoplay playsinline muted></video>
+<canvas id="canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbxb2ecE-EyN1T3qdloyHGYnqt8IcDyUxXiNLxHB9tcyG7_p2eWtbFLcjNDexwaZvSH4/exec";
+
+let pin = "";
+let currentEmp = null;
+let camReady = false;
+
+/* ---- live clock ---- */
+function tickClock(){
+  const d = new Date();
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  m = m < 10 ? "0"+m : m;
+  const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const mons=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  document.getElementById("liveClock").textContent =
+    `${days[d.getDay()]}, ${mons[d.getMonth()]} ${d.getDate()} · ${h}:${m} ${ap}`;
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---- camera warmup ---- */
+async function initCam(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user", width:480, height:480}});
+    document.getElementById("cam").srcObject = stream;
+    camReady = true;
+  }catch(e){ camReady = false; }
+}
+initCam();
+
+function snapPhoto(){
+  if(!camReady) return "";
+  try{
+    const v = document.getElementById("cam");
+    const c = document.getElementById("canvas");
+    const size = 240;
+    c.width = size; c.height = size;
+    const ctx = c.getContext("2d");
+    const vw = v.videoWidth, vh = v.videoHeight;
+    const side = Math.min(vw, vh);
+    ctx.drawImage(v, (vw-side)/2, (vh-side)/2, side, side, 0, 0, size, size);
+    return c.toDataURL("image/jpeg", 0.5);
+  }catch(e){ return ""; }
+}
+
+/* ---- PIN entry ---- */
+function renderPin(){
+  const dots = document.querySelectorAll("#pinDisplay .pin-dot");
+  dots.forEach((d,i)=> d.classList.toggle("filled", i < pin.length));
+}
+document.querySelectorAll(".key[data-k]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const k = btn.dataset.k;
+    if(k === "del"){ pin = pin.slice(0,-1); }
+    else if(pin.length < 4){ pin += k; }
+    renderPin();
+    if(pin.length === 4){ checkPin(); }
+  });
+});
+
+/* ---- API call ---- */
+async function api(payload){
+  const res = await fetch(API, {
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+async function checkPin(){
+  toast("Checking…", "", true);
+  try{
+    const r = await api({action:"getStatus", pin});
+    if(!r.ok){ toast(r.error || "PIN not recognized", "err"); resetPin(); return; }
+    hideToast();
+    currentEmp = {name:r.name, state:r.state, admin:r.admin};
+    showStatus();
+  }catch(e){ toast("Connection error — try again", "err"); resetPin(); }
+}
+
+function resetPin(){ pin=""; renderPin(); }
+
+/* ---- status screen ---- */
+function showStatus(){
+  document.getElementById("pinScreen").classList.add("hidden");
+  document.getElementById("statusScreen").classList.remove("hidden");
+  document.getElementById("whoName").textContent = currentEmp.name;
+
+  const pill = document.getElementById("statePill");
+  const box  = document.getElementById("actionButtons");
+  box.innerHTML = "";
+
+  if(currentEmp.state === "WORKING"){
+    pill.textContent = "On the clock"; pill.className = "state-pill state-working";
+    box.appendChild(mkBtn("Clock Out", "btn-out", "OUT"));
+    box.appendChild(mkBtn("Start Break", "btn-break", "BREAK_OUT"));
+  } else if(currentEmp.state === "ON_BREAK"){
+    pill.textContent = "On break"; pill.className = "state-pill state-break";
+    box.appendChild(mkBtn("End Break", "btn-endbreak", "BREAK_IN"));
+  } else {
+    pill.textContent = "Clocked out"; pill.className = "state-pill state-out";
+    box.appendChild(mkBtn("Clock In", "btn-in", "IN"));
+  }
+}
+
+function mkBtn(label, cls, type){
+  const b = document.createElement("button");
+  b.className = "btn " + cls;
+  b.textContent = label;
+  b.addEventListener("click", ()=> doPunch(type, b));
+  return b;
+}
+
+async function doPunch(type, btnEl){
+  document.querySelectorAll("#actionButtons .btn").forEach(b=> b.disabled = true);
+  const orig = btnEl.textContent;
+  btnEl.innerHTML = '<span class="spinner"></span>Saving…';
+
+  const photo = (type === "IN") ? snapPhoto() : "";
+  try{
+    const r = await api({action:"punch", pin, type, photo});
+    if(!r.ok){ toast(r.error || "Could not save", "err"); btnEl.textContent = orig;
+      document.querySelectorAll("#actionButtons .btn").forEach(b=> b.disabled = false); return; }
+    toast(r.message, "ok");
+    setTimeout(goHome, 1400);
+  }catch(e){
+    toast("Connection error — try again", "err");
+    btnEl.textContent = orig;
+    document.querySelectorAll("#actionButtons .btn").forEach(b=> b.disabled = false);
+  }
+}
+
+function goHome(){
+  currentEmp = null; resetPin();
+  document.getElementById("statusScreen").classList.add("hidden");
+  document.getElementById("pinScreen").classList.remove("hidden");
+}
+document.getElementById("doneBtn").addEventListener("click", goHome);
+document.getElementById("refreshLink").addEventListener("click", ()=> location.reload(true));
+
+/* ---- toast ---- */
+let toastTimer;
+function toast(msg, kind, sticky){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show " + (kind||"");
+  clearTimeout(toastTimer);
+  if(!sticky){ toastTimer = setTimeout(()=> t.classList.remove("show"), 2600); }
+}
+function hideToast(){ document.getElementById("toast").classList.remove("show"); }
+</script>
+</body>
+</html>

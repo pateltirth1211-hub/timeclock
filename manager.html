@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>busyANT Time Clock — Manager</title>
+<style>
+  :root{
+    --orange:#F47B20; --black:#1a1a1a; --green:#2e7d32;
+    --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e6e6; --bg:#faf7f3; --card:#ffffff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh}
+  .wrap{max-width:760px; margin:0 auto; padding:18px}
+
+  .brand{text-align:center; margin:8px 0 18px}
+  .brand h1{margin:0; font-size:26px; font-weight:800; letter-spacing:-.5px}
+  .brand h1 .ant{color:var(--orange)}
+  .brand p{margin:3px 0 0; color:var(--muted); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:0 6px 24px rgba(0,0,0,.05); margin-bottom:16px}
+
+  /* login */
+  .login{max-width:340px; margin:40px auto 0}
+  .pin-display{display:flex; justify-content:center; gap:14px; margin:6px 0 22px}
+  .pin-dot{width:15px; height:15px; border-radius:50%; border:2px solid var(--line)}
+  .pin-dot.filled{background:var(--orange); border-color:var(--orange)}
+  .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .key{height:60px; border:none; border-radius:14px; background:#f3efe9; font-size:24px; font-weight:700; cursor:pointer}
+  .key:active{background:#eae4db; transform:scale(.96)}
+  .key.ghost{background:transparent}
+  .key.action{background:var(--black); color:#fff; font-size:17px}
+
+  /* tabs */
+  .tabs{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap}
+  .tab{flex:1; min-width:90px; padding:11px 8px; border:1px solid var(--line); background:var(--card); border-radius:12px; font-weight:700; font-size:14px; cursor:pointer; color:var(--muted); transition:.12s}
+  .tab.active{background:var(--black); color:#fff; border-color:var(--black)}
+
+  h2{font-size:16px; margin:0 0 14px; font-weight:800}
+  .muted{color:var(--muted)}
+  .row-empty{text-align:center; color:var(--muted); padding:26px 10px; font-size:14px}
+
+  /* live list */
+  .live-item{display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--line)}
+  .live-item:last-child{border-bottom:none}
+  .live-name{font-weight:700; font-size:16px}
+  .live-since{font-size:13px; color:var(--muted); margin-top:2px}
+  .badge{padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px}
+  .badge-working{background:#e7f3e8; color:var(--green)}
+  .badge-break{background:#fff3e0; color:var(--orange)}
+
+  /* controls */
+  .field{margin-bottom:12px}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px}
+  input[type=text],input[type=number],input[type=date],input[type=password]{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font-size:16px; font-family:inherit; background:#fff
+  }
+  .btn{border:none; border-radius:12px; padding:13px 18px; font-size:15px; font-weight:800; cursor:pointer}
+  .btn-primary{background:var(--orange); color:#fff}
+  .btn-dark{background:var(--black); color:#fff}
+  .btn-sm{padding:8px 12px; font-size:13px; border-radius:10px}
+  .btn-row{display:flex; gap:10px; flex-wrap:wrap}
+  .date-row{display:flex; gap:10px}
+  .date-row .field{flex:1}
+
+  /* timesheet table */
+  .ts-table{width:100%; border-collapse:collapse; font-size:13px}
+  .ts-table th{text-align:left; padding:8px 6px; border-bottom:2px solid var(--line); font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted)}
+  .ts-table td{padding:9px 6px; border-bottom:1px solid #f0f0f0; vertical-align:middle}
+  .ts-table tr:last-child td{border-bottom:none}
+  .flagcell{color:var(--orange); font-weight:700; font-size:11px}
+  .thumb{width:34px; height:34px; border-radius:8px; object-fit:cover; cursor:pointer; background:#eee}
+  .totals{margin-top:14px; padding-top:14px; border-top:2px solid var(--line); display:flex; justify-content:space-between; font-weight:800; font-size:15px}
+  .name-sub{font-weight:700}
+
+  /* employees */
+  .emp-item{display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid var(--line)}
+  .emp-item:last-child{border-bottom:none}
+  .emp-name{font-weight:700}
+  .emp-meta{font-size:12px; color:var(--muted); margin-top:2px}
+  .tag{display:inline-block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:2px 7px; border-radius:6px; margin-left:5px}
+  .tag-admin{background:#fff3e0; color:var(--orange)}
+  .tag-off{background:#f0f0f0; color:var(--muted)}
+
+  /* modal */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; padding:18px; z-index:50}
+  .overlay.show{display:flex}
+  .modal{background:#fff; border-radius:18px; padding:22px; width:100%; max-width:420px; max-height:90vh; overflow:auto}
+  .modal h3{margin:0 0 16px; font-size:18px; font-weight:800}
+  .modal-photo{display:block; width:200px; height:200px; border-radius:14px; object-fit:cover; margin:0 auto}
+  .switch-row{display:flex; align-items:center; justify-content:space-between; padding:10px 0}
+  .switch-row label{font-weight:700; font-size:14px}
+
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(120px); background:var(--black); color:#fff; padding:14px 22px; border-radius:13px; font-weight:700; box-shadow:0 10px 30px rgba(0,0,0,.25); transition:transform .3s; z-index:60; text-align:center; max-width:90vw}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast.err{background:#c62828}
+  .toast.ok{background:var(--green)}
+  .spinner{display:inline-block; width:16px; height:16px; border:3px solid rgba(0,0,0,.15); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:8px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .center{text-align:center; padding:30px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <h1>busy<span class="ant">ANT</span></h1>
+    <p>Manager</p>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="loginView" class="card login">
+    <p class="muted" style="text-align:center;margin-top:0">Enter your admin PIN</p>
+    <div class="pin-display" id="pinDisplay">
+      <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="keys">
+      <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button><button class="key" data-k="3">3</button>
+      <button class="key" data-k="4">4</button><button class="key" data-k="5">5</button><button class="key" data-k="6">6</button>
+      <button class="key" data-k="7">7</button><button class="key" data-k="8">8</button><button class="key" data-k="9">9</button>
+      <button class="key ghost"></button><button class="key" data-k="0">0</button><button class="key action" data-k="del">⌫</button>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="appView" class="hidden">
+    <div class="tabs">
+      <button class="tab active" data-tab="live">On Shift</button>
+      <button class="tab" data-tab="sheets">Timesheets</button>
+      <button class="tab" data-tab="staff">Staff</button>
+    </div>
+
+    <!-- LIVE -->
+    <div id="liveTab" class="card">
+      <h2>Working right now</h2>
+      <div id="liveList"><div class="center"><span class="spinner"></span></div></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-dark btn-sm" id="liveRefresh">Refresh</button>
+      </div>
+    </div>
+
+    <!-- TIMESHEETS -->
+    <div id="sheetsTab" class="card hidden">
+      <h2>Timesheets</h2>
+      <div class="date-row">
+        <div class="field"><label>From</label><input type="date" id="startDate"></div>
+        <div class="field"><label>To</label><input type="date" id="endDate"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="loadSheets">View</button>
+        <button class="btn btn-dark" id="exportCsv">Export CSV</button>
+      </div>
+      <div id="sheetsResult" style="margin-top:16px"></div>
+    </div>
+
+    <!-- STAFF -->
+    <div id="staffTab" class="card hidden">
+      <h2>Staff</h2>
+      <div id="staffList"><div class="center"><span class="spinner"></span></div></div>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn btn-primary" id="addStaffBtn">+ Add Employee</button>
+      </div>
+    </div>
+
+    <p class="center muted" style="font-size:12px">
+      Records older than 60 days auto-delete. Export before each pay period to keep a copy.
+    </p>
+  </div>
+</div>
+
+<!-- modals -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbxb2ecE-EyN1T3qdloyHGYnqt8IcDyUxXiNLxHB9tcyG7_p2eWtbFLcjNDexwaZvSH4/exec";
+
+let adminPin = "";
+let pinEntry = "";
+let lastRows = [];
+
+/* ---- API ---- */
+async function api(payload){
+  const res = await fetch(API, {
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+/* ---- login ---- */
+function renderPin(){
+  document.querySelectorAll("#pinDisplay .pin-dot").forEach((d,i)=> d.classList.toggle("filled", i < pinEntry.length));
+}
+document.querySelectorAll("#loginView .key[data-k]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const k = btn.dataset.k;
+    if(k==="del") pinEntry = pinEntry.slice(0,-1);
+    else if(pinEntry.length<4) pinEntry += k;
+    renderPin();
+    if(pinEntry.length===4) tryLogin();
+  });
+});
+async function tryLogin(){
+  toast("Checking…","",true);
+  try{
+    const r = await api({action:"getLiveStatus", pin:pinEntry});
+    if(!r.ok){ toast("Not an admin PIN","err"); pinEntry=""; renderPin(); return; }
+    adminPin = pinEntry;
+    hideToast();
+    document.getElementById("loginView").classList.add("hidden");
+    document.getElementById("appView").classList.remove("hidden");
+    renderLive(r.onShift);
+    setDefaultDates();
+  }catch(e){ toast("Connection error","err"); pinEntry=""; renderPin(); }
+}
+
+/* ---- tabs ---- */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    const tab = t.dataset.tab;
+    document.getElementById("liveTab").classList.toggle("hidden", tab!=="live");
+    document.getElementById("sheetsTab").classList.toggle("hidden", tab!=="sheets");
+    document.getElementById("staffTab").classList.toggle("hidden", tab!=="staff");
+    if(tab==="live") loadLive();
+    if(tab==="staff") loadStaff();
+  });
+});
+
+/* ---- live ---- */
+async function loadLive(){
+  document.getElementById("liveList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  const r = await api({action:"getLiveStatus", pin:adminPin});
+  if(r.ok) renderLive(r.onShift);
+}
+function renderLive(list){
+  const box = document.getElementById("liveList");
+  if(!list || !list.length){ box.innerHTML = '<div class="row-empty">Nobody is clocked in right now.</div>'; return; }
+  box.innerHTML = "";
+  list.forEach(p=>{
+    const onBreak = p.state==="ON_BREAK";
+    const div = document.createElement("div");
+    div.className = "live-item";
+    div.innerHTML = `<div><div class="live-name">${esc(p.name)}</div>
+      <div class="live-since">Since ${esc(p.since)}</div></div>
+      <span class="badge ${onBreak?'badge-break':'badge-working'}">${onBreak?'On break':'Working'}</span>`;
+    box.appendChild(div);
+  });
+}
+document.getElementById("liveRefresh").addEventListener("click", loadLive);
+
+/* ---- timesheets ---- */
+function setDefaultDates(){
+  const end = new Date();
+  const start = new Date(); start.setDate(start.getDate()-13);
+  document.getElementById("startDate").value = iso(start);
+  document.getElementById("endDate").value = iso(end);
+}
+function iso(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function pad(n){ return n<10?"0"+n:n; }
+
+document.getElementById("loadSheets").addEventListener("click", loadSheets);
+async function loadSheets(){
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+  const box = document.getElementById("sheetsResult");
+  box.innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  const r = await api({action:"getTimesheets", pin:adminPin, start, end});
+  if(!r.ok){ box.innerHTML = '<div class="row-empty">'+esc(r.error||"Error")+'</div>'; return; }
+  lastRows = r.rows;
+  renderSheets(r.rows);
+}
+function renderSheets(rows){
+  const box = document.getElementById("sheetsResult");
+  if(!rows.length){ box.innerHTML = '<div class="row-empty">No shifts in this range.</div>'; return; }
+
+  // group by employee
+  const byName = {};
+  rows.forEach(r=>{ (byName[r.name]=byName[r.name]||[]).push(r); });
+
+  let html = "";
+  let grand = 0;
+  Object.keys(byName).sort().forEach(name=>{
+    const list = byName[name];
+    let sub = 0;
+    html += `<div class="name-sub" style="margin:14px 0 6px">${esc(name)}</div>`;
+    html += `<table class="ts-table"><thead><tr>
+      <th>Date</th><th>In</th><th>Break</th><th>Out</th><th>Hrs</th><th>Flag</th><th></th><th></th></tr></thead><tbody>`;
+    list.forEach(r=>{
+      const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
+      sub += hrs;
+      const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
+      const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
+      html += `<tr>
+        <td>${esc(r.date)}</td>
+        <td>${esc(cleanTime(r.clockIn)||"—")}</td>
+        <td>${esc(brk)}</td>
+        <td>${esc(cleanTime(r.clockOut)||"—")}</td>
+        <td><b>${hrs?hrs.toFixed(2):"—"}</b></td>
+        <td class="flagcell">${esc(r.flag||"")}</td>
+        <td>${r.photo?`<img class="thumb" src="${r.photo}" data-full="${r.photo}">`:""}</td>
+        <td><button class="btn btn-dark btn-sm" data-edit="${r.row}">Edit</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    html += `<div class="totals"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs</span></div>`;
+    grand += sub;
+  });
+  html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>All staff</span><span>${grand.toFixed(2)} hrs</span></div>`;
+  box.innerHTML = html;
+
+  box.querySelectorAll(".thumb").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
+  box.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openEdit(b.dataset.edit)));
+}
+
+/* ---- CSV export ---- */
+document.getElementById("exportCsv").addEventListener("click", ()=>{
+  if(!lastRows.length){ toast("Load a date range first","err"); return; }
+  const head = ["Employee","Date","Clock In","Break Out","Break In","Clock Out","Hours","Flag"];
+  const lines = [head.join(",")];
+  lastRows.forEach(r=>{
+    lines.push([r.name, r.date, cleanTime(r.clockIn), cleanTime(r.breakOut), cleanTime(r.breakIn), cleanTime(r.clockOut), r.hours, r.flag]
+      .map(x=>`"${String(x==null?"":x).replace(/"/g,'""')}"`).join(","));
+  });
+  const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const s = document.getElementById("startDate").value, e = document.getElementById("endDate").value;
+  a.href = url; a.download = `busyANT_hours_${s}_to_${e}.csv`; a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* ---- edit punch modal ---- */
+function openEdit(row){
+  const r = lastRows.find(x=> String(x.row)===String(row));
+  if(!r) return;
+  const m = document.getElementById("modalBox");
+  m.innerHTML = `
+    <h3>Edit shift — ${esc(r.name)}</h3>
+    <p class="muted" style="margin-top:-8px;font-size:13px">${esc(r.date)}. Use 12-hour format like 8:03 AM.</p>
+    <div class="field"><label>Clock In</label><input type="text" id="eIn" value="${esc(cleanTime(r.clockIn))}"></div>
+    <div class="field"><label>Break Out</label><input type="text" id="eBo" value="${esc(cleanTime(r.breakOut))}"></div>
+    <div class="field"><label>Break In</label><input type="text" id="eBi" value="${esc(cleanTime(r.breakIn))}"></div>
+    <div class="field"><label>Clock Out</label><input type="text" id="eOut" value="${esc(cleanTime(r.clockOut))}"></div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-primary" id="saveEdit">Save</button>
+      <button class="btn btn-dark" id="closeModal">Cancel</button>
+    </div>`;
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("closeModal").addEventListener("click", closeModal);
+  document.getElementById("saveEdit").addEventListener("click", async ()=>{
+    const btn = document.getElementById("saveEdit");
+    btn.innerHTML = '<span class="spinner"></span>Saving…'; btn.disabled = true;
+    const res = await api({action:"editPunch", pin:adminPin, row:r.row,
+      clockIn:val("eIn"), breakOut:val("eBo"), breakIn:val("eBi"), clockOut:val("eOut")});
+    if(res.ok){ toast(res.message,"ok"); closeModal(); loadSheets(); }
+    else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
+  });
+}
+function val(id){ return document.getElementById(id).value.trim(); }
+
+function showPhoto(src){
+  document.getElementById("modalBox").innerHTML =
+    `<h3>Clock-in photo</h3><img class="modal-photo" src="${src}">
+     <div class="btn-row" style="margin-top:16px"><button class="btn btn-dark" id="closeModal">Close</button></div>`;
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("closeModal").addEventListener("click", closeModal);
+}
+function closeModal(){ document.getElementById("overlay").classList.remove("show"); }
+document.getElementById("overlay").addEventListener("click", e=>{ if(e.target.id==="overlay") closeModal(); });
+
+/* ---- staff ---- */
+async function loadStaff(){
+  document.getElementById("staffList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  const r = await api({action:"getEmployees", pin:adminPin});
+  if(!r.ok){ document.getElementById("staffList").innerHTML = '<div class="row-empty">'+esc(r.error)+'</div>'; return; }
+  renderStaff(r.employees);
+}
+function renderStaff(list){
+  const box = document.getElementById("staffList");
+  box.innerHTML = "";
+  list.forEach(e=>{
+    const div = document.createElement("div");
+    div.className = "emp-item";
+    div.innerHTML = `<div>
+        <span class="emp-name">${esc(e.name)}</span>
+        ${e.admin?'<span class="tag tag-admin">Admin</span>':''}
+        ${!e.active?'<span class="tag tag-off">Inactive</span>':''}
+        <div class="emp-meta">PIN ${esc(e.pin)} · $${Number(e.rate).toFixed(2)}/hr</div>
+      </div>
+      <button class="btn btn-dark btn-sm" data-emp='${encodeURIComponent(JSON.stringify(e))}'>Edit</button>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll("[data-emp]").forEach(b=> b.addEventListener("click", ()=> openEmp(JSON.parse(decodeURIComponent(b.dataset.emp)))));
+}
+document.getElementById("addStaffBtn").addEventListener("click", ()=> openEmp(null));
+
+function openEmp(e){
+  const isNew = !e;
+  const m = document.getElementById("modalBox");
+  m.innerHTML = `
+    <h3>${isNew?"Add employee":"Edit "+esc(e.name)}</h3>
+    <div class="field"><label>Name</label><input type="text" id="eName" value="${isNew?'':esc(e.name)}"></div>
+    <div class="field"><label>PIN (4 digits)</label><input type="number" id="ePin" value="${isNew?'':esc(e.pin)}"></div>
+    <div class="field"><label>Hourly rate</label><input type="number" id="eRate" value="${isNew?'0':e.rate}" step="0.25"></div>
+    <div class="switch-row"><label>Active</label><input type="checkbox" id="eActive" ${isNew||e.active?'checked':''} style="width:22px;height:22px"></div>
+    <div class="switch-row"><label>Admin access</label><input type="checkbox" id="eAdmin" ${(!isNew&&e.admin)?'checked':''} style="width:22px;height:22px"></div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" id="saveEmp">Save</button>
+      <button class="btn btn-dark" id="closeModal">Cancel</button>
+    </div>`;
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("closeModal").addEventListener("click", closeModal);
+  document.getElementById("saveEmp").addEventListener("click", async ()=>{
+    const name = val("eName"), newPin = val("ePin"), rate = val("eRate");
+    if(!name || newPin.length!==4){ toast("Name and a 4-digit PIN required","err"); return; }
+    const btn = document.getElementById("saveEmp"); btn.innerHTML='<span class="spinner"></span>Saving…'; btn.disabled=true;
+    const payload = {pin:adminPin, name, newPin, rate,
+      active:document.getElementById("eActive").checked, admin:document.getElementById("eAdmin").checked};
+    payload.action = isNew ? "addEmployee" : "updateEmployee";
+    if(!isNew) payload.row = e.row;
+    const res = await api(payload);
+    if(res.ok){ toast(res.message,"ok"); closeModal(); loadStaff(); }
+    else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
+  });
+}
+
+/* ---- utils ---- */
+function cleanTime(s){
+  s = String(s==null?"":s).trim();
+  if(!s) return "";
+  // already clean like "11:10 PM"
+  let m = s.match(/\b(\d{1,2}):(\d{2})\s*([AaPp][Mm])\b/);
+  if(m) return m[1]+":"+m[2]+" "+m[3].toUpperCase();
+  // 24-hour or full date string -> pull HH:MM and convert
+  m = s.match(/(\d{1,2}):(\d{2})/);
+  if(!m) return s;
+  let hh = parseInt(m[1],10), mm = m[2];
+  const ap = hh>=12 ? "PM":"AM";
+  hh = hh%12 || 12;
+  return hh+":"+mm+" "+ap;
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let toastTimer;
+function toast(msg, kind, sticky){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "toast show "+(kind||"");
+  clearTimeout(toastTimer);
+  if(!sticky) toastTimer = setTimeout(()=> t.classList.remove("show"), 2600);
+}
+function hideToast(){ document.getElementById("toast").classList.remove("show"); }
+</script>
+</body>
+</html>
