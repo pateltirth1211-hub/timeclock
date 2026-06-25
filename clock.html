@@ -187,9 +187,11 @@ document.querySelectorAll(".key[data-k]").forEach(btn=>{
 
 /* ---- API call ---- */
 async function api(payload){
+  const fd = new FormData();
+  fd.append("payload", JSON.stringify(payload));
   const res = await fetch(API, {
     method:"POST",
-    body: JSON.stringify(payload)
+    body: fd
   });
   return res.json();
 }
