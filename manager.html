@@ -183,29 +183,15 @@ let adminPin = "";
 let pinEntry = "";
 let lastRows = [];
 
-/* ---- API (JSONP — bypasses CORS entirely) ---- */
-function api(payload){
-  return new Promise(function(resolve, reject){
-    var cbName = "cb_" + Math.random().toString(36).slice(2);
-    var params = [];
-    for (var k in payload){
-      params.push(encodeURIComponent(k) + "=" + encodeURIComponent(payload[k]));
-    }
-    params.push("callback=" + cbName);
-    var script = document.createElement("script");
-    var timer = setTimeout(function(){
-      cleanup(); reject(new Error("timeout"));
-    }, 20000);
-    function cleanup(){
-      clearTimeout(timer);
-      delete window[cbName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }
-    window[cbName] = function(data){ cleanup(); resolve(data); };
-    script.onerror = function(){ cleanup(); reject(new Error("network")); };
-    script.src = API + "?" + params.join("&");
-    document.body.appendChild(script);
-  });
+/* ---- API (simple GET — no preflight, no nosniff issue) ---- */
+async function api(payload){
+  var params = [];
+  for (var k in payload){
+    params.push(encodeURIComponent(k) + "=" + encodeURIComponent(payload[k]));
+  }
+  const res = await fetch(API + "?" + params.join("&"), { method:"GET" });
+  const text = await res.text();
+  return JSON.parse(text);
 }
 
 /* ---- login ---- */
