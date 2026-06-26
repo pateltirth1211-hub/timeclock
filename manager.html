@@ -45,6 +45,8 @@
   .live-item{display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--line)}
   .live-item:last-child{border-bottom:none}
   .live-name{font-weight:700; font-size:16px}
+  .live-thumb{width:48px; height:48px; border-radius:10px; object-fit:cover; background:#eee; cursor:pointer; flex-shrink:0}
+  .live-noimg{display:flex; align-items:center; justify-content:center; color:#bbb; font-weight:700}
   .live-since{font-size:13px; color:var(--muted); margin-top:2px}
   .badge{padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px}
   .badge-working{background:#e7f3e8; color:var(--green)}
@@ -247,11 +249,15 @@ function renderLive(list){
     const onBreak = p.state==="ON_BREAK";
     const div = document.createElement("div");
     div.className = "live-item";
-    div.innerHTML = `<div><div class="live-name">${esc(p.name)}</div>
-      <div class="live-since">Since ${esc(p.since)}</div></div>
+    const pic = p.photo ? `<img class="live-thumb" src="${p.photo}" data-full="${p.photo}">` : `<div class="live-thumb live-noimg">—</div>`;
+    div.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      ${pic}
+      <div><div class="live-name">${esc(p.name)}</div>
+      <div class="live-since">Since ${esc(p.since)}</div></div></div>
       <span class="badge ${onBreak?'badge-break':'badge-working'}">${onBreak?'On break':'Working'}</span>`;
     box.appendChild(div);
   });
+  box.querySelectorAll(".live-thumb[data-full]").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
 }
 document.getElementById("liveRefresh").addEventListener("click", loadLive);
 
