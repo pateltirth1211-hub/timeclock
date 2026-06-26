@@ -160,13 +160,13 @@ function snapPhoto(){
   try{
     const v = document.getElementById("cam");
     const c = document.getElementById("canvas");
-    const size = 200;
+    const size = 80;
     c.width = size; c.height = size;
     const ctx = c.getContext("2d");
     const vw = v.videoWidth, vh = v.videoHeight;
     const side = Math.min(vw, vh);
     ctx.drawImage(v, (vw-side)/2, (vh-side)/2, side, side, 0, 0, size, size);
-    return c.toDataURL("image/jpeg", 0.5);
+    return c.toDataURL("image/jpeg", 0.35);
   }catch(e){ return ""; }
 }
 
