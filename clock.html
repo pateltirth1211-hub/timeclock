@@ -185,13 +185,9 @@ document.querySelectorAll(".key[data-k]").forEach(btn=>{
   });
 });
 
-/* ---- API call (bare text/plain POST — CORS-safe, no preflight) ---- */
+/* ---- API call (text/plain POST with JSON body — CORS-safe, handles photos) ---- */
 async function api(payload){
-  var params = [];
-  for (var k in payload){
-    params.push(encodeURIComponent(k) + "=" + encodeURIComponent(payload[k]));
-  }
-  const res = await fetch(API, { method:"POST", body: params.join("&") });
+  const res = await fetch(API, { method:"POST", body: JSON.stringify(payload) });
   const text = await res.text();
   return JSON.parse(text);
 }
