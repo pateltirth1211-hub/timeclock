@@ -426,7 +426,7 @@ function renderStaff(list){
         <span class="emp-name">${esc(e.name)}</span>
         ${e.admin?'<span class="tag tag-admin">Admin</span>':''}
         ${!e.active?'<span class="tag tag-off">Inactive</span>':''}
-        <div class="emp-meta">PIN ${esc(e.pin)} · $${Number(e.rate).toFixed(2)}/hr</div>
+        <div class="emp-meta">PIN ${esc(e.pin)} · $${Number(e.rate).toFixed(2)}/hr${e.phone?' · '+esc(e.phone):''}</div>
       </div>
       <button class="btn btn-dark btn-sm" data-emp='${encodeURIComponent(JSON.stringify(e))}'>Edit</button>`;
     box.appendChild(div);
@@ -442,6 +442,7 @@ function openEmp(e){
     <h3>${isNew?"Add employee":"Edit "+esc(e.name)}</h3>
     <div class="field"><label>Name</label><input type="text" id="eName" value="${isNew?'':esc(e.name)}"></div>
     <div class="field"><label>PIN (4 digits)</label><input type="number" id="ePin" value="${isNew?'':esc(e.pin)}"></div>
+    <div class="field"><label>Phone</label><input type="tel" id="ePhone" value="${isNew?'':esc(e.phone||'')}" placeholder="(334) 555-1234"></div>
     <div class="field"><label>Hourly rate</label><input type="number" id="eRate" value="${isNew?'0':e.rate}" step="0.25"></div>
     <div class="switch-row"><label>Active</label><input type="checkbox" id="eActive" ${isNew||e.active?'checked':''} style="width:22px;height:22px"></div>
     <div class="switch-row"><label>Admin access</label><input type="checkbox" id="eAdmin" ${(!isNew&&e.admin)?'checked':''} style="width:22px;height:22px"></div>
@@ -452,10 +453,10 @@ function openEmp(e){
   document.getElementById("overlay").classList.add("show");
   document.getElementById("closeModal").addEventListener("click", closeModal);
   document.getElementById("saveEmp").addEventListener("click", async ()=>{
-    const name = val("eName"), newPin = val("ePin"), rate = val("eRate");
+    const name = val("eName"), newPin = val("ePin"), rate = val("eRate"), phone = val("ePhone");
     if(!name || newPin.length!==4){ toast("Name and a 4-digit PIN required","err"); return; }
     const btn = document.getElementById("saveEmp"); btn.innerHTML='<span class="spinner"></span>Saving…'; btn.disabled=true;
-    const payload = {pin:adminPin, name, newPin, rate,
+    const payload = {pin:adminPin, name, newPin, rate, phone,
       active:document.getElementById("eActive").checked, admin:document.getElementById("eAdmin").checked};
     payload.action = isNew ? "addEmployee" : "updateEmployee";
     if(!isNew) payload.row = e.row;
