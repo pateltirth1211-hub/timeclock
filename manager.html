@@ -187,7 +187,9 @@ let lastRows = [];
 async function api(payload){
   const res = await fetch(API, { method:"POST", body: JSON.stringify(payload) });
   const text = await res.text();
-  return JSON.parse(text);
+  let data = JSON.parse(text);
+  if (typeof data === "string") data = JSON.parse(data);  // unwrap if double-encoded
+  return data;
 }
 
 /* ---- login ---- */
@@ -284,15 +286,19 @@ function renderSheets(rows){
 
   let html = "";
   let grand = 0;
+  let grandPay = 0;
   Object.keys(byName).sort().forEach(name=>{
     const list = byName[name];
     let sub = 0;
+    let subPay = 0;
     html += `<div class="name-sub" style="margin:14px 0 6px">${esc(name)}</div>`;
     html += `<table class="ts-table"><thead><tr>
-      <th>Date</th><th>In</th><th>Break</th><th>Out</th><th>Hrs</th><th>Flag</th><th></th><th></th></tr></thead><tbody>`;
+      <th>Date</th><th>In</th><th>Break</th><th>Out</th><th>Hrs</th><th>Pay</th><th>Flag</th><th></th><th></th></tr></thead><tbody>`;
     list.forEach(r=>{
       const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
+      const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
       sub += hrs;
+      subPay += pay;
       const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
       const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
       html += `<tr>
@@ -301,16 +307,18 @@ function renderSheets(rows){
         <td>${esc(brk)}</td>
         <td>${esc(cleanTime(r.clockOut)||"—")}</td>
         <td><b>${hrs?hrs.toFixed(2):"—"}</b></td>
+        <td>${pay?"$"+pay.toFixed(2):"—"}</td>
         <td class="flagcell">${esc(r.flag||"")}</td>
         <td>${r.photo?`<img class="thumb" src="${r.photo}" data-full="${r.photo}">`:""}</td>
         <td><button class="btn btn-dark btn-sm" data-edit="${r.row}">Edit</button></td>
       </tr>`;
     });
     html += `</tbody></table>`;
-    html += `<div class="totals"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs</span></div>`;
+    html += `<div class="totals"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
     grand += sub;
+    grandPay += subPay;
   });
-  html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>All staff</span><span>${grand.toFixed(2)} hrs</span></div>`;
+  html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>All staff</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
   box.innerHTML = html;
 
   box.querySelectorAll(".thumb").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
@@ -320,10 +328,10 @@ function renderSheets(rows){
 /* ---- CSV export ---- */
 document.getElementById("exportCsv").addEventListener("click", ()=>{
   if(!lastRows.length){ toast("Load a date range first","err"); return; }
-  const head = ["Employee","Date","Clock In","Break Out","Break In","Clock Out","Hours","Flag"];
+  const head = ["Employee","Date","Clock In","Break Out","Break In","Clock Out","Hours","Pay","Flag"];
   const lines = [head.join(",")];
   lastRows.forEach(r=>{
-    lines.push([r.name, r.date, cleanTime(r.clockIn), cleanTime(r.breakOut), cleanTime(r.breakIn), cleanTime(r.clockOut), r.hours, r.flag]
+    lines.push([r.name, r.date, cleanTime(r.clockIn), cleanTime(r.breakOut), cleanTime(r.breakIn), cleanTime(r.clockOut), r.hours, r.pay, r.flag]
       .map(x=>`"${String(x==null?"":x).replace(/"/g,'""')}"`).join(","));
   });
   const blob = new Blob([lines.join("\n")], {type:"text/csv"});
