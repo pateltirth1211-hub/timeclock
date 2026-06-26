@@ -160,13 +160,13 @@ function snapPhoto(){
   try{
     const v = document.getElementById("cam");
     const c = document.getElementById("canvas");
-    const size = 240;
+    const size = 120;
     c.width = size; c.height = size;
     const ctx = c.getContext("2d");
     const vw = v.videoWidth, vh = v.videoHeight;
     const side = Math.min(vw, vh);
     ctx.drawImage(v, (vw-side)/2, (vh-side)/2, side, side, 0, 0, size, size);
-    return c.toDataURL("image/jpeg", 0.5);
+    return c.toDataURL("image/jpeg", 0.4);
   }catch(e){ return ""; }
 }
 
@@ -185,15 +185,29 @@ document.querySelectorAll(".key[data-k]").forEach(btn=>{
   });
 });
 
-/* ---- API call ---- */
-async function api(payload){
-  const fd = new FormData();
-  fd.append("payload", JSON.stringify(payload));
-  const res = await fetch(API, {
-    method:"POST",
-    body: fd
+/* ---- API call (JSONP — bypasses CORS entirely) ---- */
+function api(payload){
+  return new Promise(function(resolve, reject){
+    var cbName = "cb_" + Math.random().toString(36).slice(2);
+    var params = [];
+    for (var k in payload){
+      params.push(encodeURIComponent(k) + "=" + encodeURIComponent(payload[k]));
+    }
+    params.push("callback=" + cbName);
+    var script = document.createElement("script");
+    var timer = setTimeout(function(){
+      cleanup(); reject(new Error("timeout"));
+    }, 20000);
+    function cleanup(){
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data){ cleanup(); resolve(data); };
+    script.onerror = function(){ cleanup(); reject(new Error("network")); };
+    script.src = API + "?" + params.join("&");
+    document.body.appendChild(script);
   });
-  return res.json();
 }
 
 async function checkPin(){
