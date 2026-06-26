@@ -10,7 +10,7 @@
     --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e6e6; --bg:#faf7f3; --card:#ffffff;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%}
+  html,body{margin:0;height:100%;touch-action:manipulation;-webkit-text-size-adjust:100%}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     background:var(--bg); color:var(--ink);
@@ -125,6 +125,20 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ---- block zoom (pinch + double-tap) on iOS Safari ---- */
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+document.addEventListener('gesturechange', function(e){ e.preventDefault(); });
+document.addEventListener('gestureend', function(e){ e.preventDefault(); });
+let lastTouch = 0;
+document.addEventListener('touchend', function(e){
+  const now = Date.now();
+  if (now - lastTouch <= 300) { e.preventDefault(); }
+  lastTouch = now;
+}, { passive: false });
+document.addEventListener('touchmove', function(e){
+  if (e.touches.length > 1) { e.preventDefault(); }
+}, { passive: false });
+
 const API = "https://busyant-proxy.pateltirth1211.workers.dev";
 
 let pin = "";
