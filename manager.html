@@ -183,13 +183,13 @@ let adminPin = "";
 let pinEntry = "";
 let lastRows = [];
 
-/* ---- API (simple GET — no preflight, no nosniff issue) ---- */
+/* ---- API (bare text/plain POST — CORS-safe, no preflight) ---- */
 async function api(payload){
   var params = [];
   for (var k in payload){
     params.push(encodeURIComponent(k) + "=" + encodeURIComponent(payload[k]));
   }
-  const res = await fetch(API + "?" + params.join("&"), { method:"GET" });
+  const res = await fetch(API, { method:"POST", body: params.join("&") });
   const text = await res.text();
   return JSON.parse(text);
 }

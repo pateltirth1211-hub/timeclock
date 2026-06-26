@@ -160,13 +160,13 @@ function snapPhoto(){
   try{
     const v = document.getElementById("cam");
     const c = document.getElementById("canvas");
-    const size = 90;
+    const size = 200;
     c.width = size; c.height = size;
     const ctx = c.getContext("2d");
     const vw = v.videoWidth, vh = v.videoHeight;
     const side = Math.min(vw, vh);
     ctx.drawImage(v, (vw-side)/2, (vh-side)/2, side, side, 0, 0, size, size);
-    return c.toDataURL("image/jpeg", 0.3);
+    return c.toDataURL("image/jpeg", 0.5);
   }catch(e){ return ""; }
 }
 
@@ -185,13 +185,13 @@ document.querySelectorAll(".key[data-k]").forEach(btn=>{
   });
 });
 
-/* ---- API call (simple GET — no preflight, no nosniff issue) ---- */
+/* ---- API call (bare text/plain POST — CORS-safe, no preflight) ---- */
 async function api(payload){
   var params = [];
   for (var k in payload){
     params.push(encodeURIComponent(k) + "=" + encodeURIComponent(payload[k]));
   }
-  const res = await fetch(API + "?" + params.join("&"), { method:"GET" });
+  const res = await fetch(API, { method:"POST", body: params.join("&") });
   const text = await res.text();
   return JSON.parse(text);
 }
