@@ -125,7 +125,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const API = "https://script.google.com/macros/s/AKfycbxb2ecE-EyN1T3qdloyHGYnqt8IcDyUxXiNLxHB9tcyG7_p2eWtbFLcjNDexwaZvSH4/exec";
+const API = "https://busyant-proxy.pateltirth1211.workers.dev";
 
 let pin = "";
 let currentEmp = null;
@@ -160,13 +160,13 @@ function snapPhoto(){
   try{
     const v = document.getElementById("cam");
     const c = document.getElementById("canvas");
-    const size = 80;
+    const size = 240;
     c.width = size; c.height = size;
     const ctx = c.getContext("2d");
     const vw = v.videoWidth, vh = v.videoHeight;
     const side = Math.min(vw, vh);
     ctx.drawImage(v, (vw-side)/2, (vh-side)/2, side, side, 0, 0, size, size);
-    return c.toDataURL("image/jpeg", 0.35);
+    return c.toDataURL("image/jpeg", 0.6);
   }catch(e){ return ""; }
 }
 
