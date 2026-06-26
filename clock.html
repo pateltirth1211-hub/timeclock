@@ -189,7 +189,9 @@ document.querySelectorAll(".key[data-k]").forEach(btn=>{
 async function api(payload){
   const res = await fetch(API, { method:"POST", body: JSON.stringify(payload) });
   const text = await res.text();
-  return JSON.parse(text);
+  let data = JSON.parse(text);
+  if (typeof data === "string") data = JSON.parse(data);  // unwrap if double-encoded
+  return data;
 }
 
 async function checkPin(){
@@ -241,7 +243,7 @@ async function doPunch(type, btnEl){
   const orig = btnEl.textContent;
   btnEl.innerHTML = '<span class="spinner"></span>Saving…';
 
-  const photo = (type === "IN") ? snapPhoto() : "";
+  const photo = "";  // TEMPORARILY DISABLED — testing core punch flow
   try{
     const r = await api({action:"punch", pin, type, photo});
     if(!r.ok){ toast(r.error || "Could not save", "err"); btnEl.textContent = orig;
