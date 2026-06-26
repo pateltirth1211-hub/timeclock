@@ -243,7 +243,7 @@ async function doPunch(type, btnEl){
   const orig = btnEl.textContent;
   btnEl.innerHTML = '<span class="spinner"></span>Saving…';
 
-  const photo = "";  // TEMPORARILY DISABLED — testing core punch flow
+  const photo = (type === "IN") ? snapPhoto() : "";
   try{
     const r = await api({action:"punch", pin, type, photo});
     if(!r.ok){ toast(r.error || "Could not save", "err"); btnEl.textContent = orig;
