@@ -318,7 +318,7 @@ function renderSheets(rows){
     grand += sub;
     grandPay += subPay;
   });
-  html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>All staff</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
+  html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
   box.innerHTML = html;
 
   box.querySelectorAll(".thumb").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
