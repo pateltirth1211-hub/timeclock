@@ -314,7 +314,6 @@ function renderSheets(rows){
       </tr>`;
     });
     html += `</tbody></table>`;
-    html += `<div class="totals"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
     grand += sub;
     grandPay += subPay;
   });
@@ -349,11 +348,11 @@ function openEdit(row){
   const m = document.getElementById("modalBox");
   m.innerHTML = `
     <h3>Edit shift — ${esc(r.name)}</h3>
-    <p class="muted" style="margin-top:-8px;font-size:13px">${esc(r.date)}. Use 12-hour format like 8:03 AM.</p>
-    <div class="field"><label>Clock In</label><input type="text" id="eIn" value="${esc(cleanTime(r.clockIn))}"></div>
-    <div class="field"><label>Break Out</label><input type="text" id="eBo" value="${esc(cleanTime(r.breakOut))}"></div>
-    <div class="field"><label>Break In</label><input type="text" id="eBi" value="${esc(cleanTime(r.breakIn))}"></div>
-    <div class="field"><label>Clock Out</label><input type="text" id="eOut" value="${esc(cleanTime(r.clockOut))}"></div>
+    <p class="muted" style="margin-top:-8px;font-size:13px">${esc(r.date)}. Tap a field to pick the time.</p>
+    <div class="field"><label>Clock In</label><input type="time" id="eIn" value="${to24(r.clockIn)}"></div>
+    <div class="field"><label>Break Out</label><input type="time" id="eBo" value="${to24(r.breakOut)}"></div>
+    <div class="field"><label>Break In</label><input type="time" id="eBi" value="${to24(r.breakIn)}"></div>
+    <div class="field"><label>Clock Out</label><input type="time" id="eOut" value="${to24(r.clockOut)}"></div>
     <div class="btn-row" style="margin-top:8px">
       <button class="btn btn-primary" id="saveEdit">Save</button>
       <button class="btn btn-dark" id="closeModal">Cancel</button>
@@ -364,12 +363,35 @@ function openEdit(row){
     const btn = document.getElementById("saveEdit");
     btn.innerHTML = '<span class="spinner"></span>Saving…'; btn.disabled = true;
     const res = await api({action:"editPunch", pin:adminPin, row:r.row,
-      clockIn:val("eIn"), breakOut:val("eBo"), breakIn:val("eBi"), clockOut:val("eOut")});
+      clockIn:from24("eIn"), breakOut:from24("eBo"), breakIn:from24("eBi"), clockOut:from24("eOut")});
     if(res.ok){ toast(res.message,"ok"); closeModal(); loadSheets(); }
     else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
   });
 }
 function val(id){ return document.getElementById(id).value.trim(); }
+
+/* convert "11:25 PM" -> "23:25" for the time picker */
+function to24(s){
+  s = cleanTime(s);
+  if(!s) return "";
+  const m = s.match(/(\d{1,2}):(\d{2})\s*([AP]M)/i);
+  if(!m) return "";
+  let hh = parseInt(m[1],10); const mm = m[2]; const ap = m[3].toUpperCase();
+  if(ap==="PM" && hh<12) hh+=12;
+  if(ap==="AM" && hh===12) hh=0;
+  return (hh<10?"0"+hh:hh)+":"+mm;
+}
+/* convert picker "23:25" -> "11:25 PM" for saving */
+function from24(id){
+  const s = document.getElementById(id).value.trim();
+  if(!s) return "";
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if(!m) return "";
+  let hh = parseInt(m[1],10); const mm = m[2];
+  const ap = hh>=12 ? "PM":"AM";
+  hh = hh%12 || 12;
+  return hh+":"+mm+" "+ap;
+}
 
 function showPhoto(src){
   document.getElementById("modalBox").innerHTML =
