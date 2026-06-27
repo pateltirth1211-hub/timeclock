@@ -14,15 +14,38 @@
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     background:var(--bg); color:var(--ink);
-    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;
+    min-height:100vh; position:relative; overflow-x:hidden;
   }
-  .app{width:100%; max-width:460px}
-  .brand{text-align:center; margin-bottom:22px}
-  .brand h1{margin:0; font-size:30px; font-weight:800; letter-spacing:-.5px}
-  .brand h1 .ant{color:var(--orange)}
-  .brand p{margin:4px 0 0; color:var(--muted); font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:1px}
+
+  /* full-screen watermark (same big size as idle logo) */
+  .watermark{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:min(80vw,520px); opacity:.05; pointer-events:none; z-index:0;
+  }
+
+  /* header logo on every screen */
+  .header{ text-align:center; padding:18px 0 6px; position:relative; z-index:2 }
+  .header img{ height:46px; width:auto }
+
+  .screen{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center;
+           justify-content:center; min-height:calc(100vh - 80px); padding:10px 20px 30px }
+  .app{ width:100%; max-width:460px }
+
   .card{background:var(--card); border:1px solid var(--line); border-radius:20px; padding:26px; box-shadow:0 8px 30px rgba(0,0,0,.06)}
   .clock-now{text-align:center; font-variant-numeric:tabular-nums; font-size:15px; color:var(--muted); margin-bottom:18px; font-weight:600}
+
+  /* ---- IDLE SCREEN ---- */
+  #idleScreen{ position:fixed; inset:0; z-index:40; background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer;
+    transition:opacity .5s ease; }
+  #idleScreen.fade{ opacity:0; pointer-events:none }
+  .idle-logo{ width:min(80vw,520px); animation:float 3.5s ease-in-out infinite }
+  @keyframes float{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-16px) } }
+  .idle-time{ font-size:44px; font-weight:800; letter-spacing:-1px; margin-top:24px; font-variant-numeric:tabular-nums }
+  .idle-date{ font-size:18px; color:var(--muted); font-weight:600; margin-top:2px }
+  .idle-hint{ margin-top:30px; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:2px;
+    color:var(--orange); animation:pulse 2s ease-in-out infinite }
+  @keyframes pulse{ 0%,100%{ opacity:.4 } 50%{ opacity:1 } }
 
   /* PIN screen */
   .pin-display{display:flex; justify-content:center; gap:14px; margin:6px 0 22px}
@@ -32,6 +55,7 @@
   .key{
     height:68px; border:none; border-radius:16px; background:#f3efe9; color:var(--ink);
     font-size:26px; font-weight:700; cursor:pointer; transition:.1s; font-variant-numeric:tabular-nums;
+    -webkit-appearance:none; appearance:none;
   }
   .key:active{transform:scale(.96); background:#eae4db}
   .key.ghost{background:transparent}
@@ -52,23 +76,34 @@
   .btn-out{background:var(--black); color:#fff}
   .btn-break{background:var(--orange); color:#fff}
   .btn-endbreak{background:var(--green); color:#fff}
-  .btn-ghost{background:transparent; color:var(--muted); font-weight:700; font-size:15px; padding:12px}
+
+  /* Done button — clearly secondary, bigger tap target, NOT a colored action */
+  .btn-done{ background:transparent; color:var(--muted); font-weight:700; font-size:16px;
+    padding:18px; border:2px solid var(--line); border-radius:16px; margin-top:14px; width:100% }
+  .btn-done:active{ background:#f0ece6 }
 
   /* camera */
   video,canvas{display:none}
+
+  /* ---- loading overlay (logo + spinner) ---- */
+  #loadingOverlay{ position:fixed; inset:0; z-index:60; background:rgba(250,247,243,.96);
+    display:none; flex-direction:column; align-items:center; justify-content:center }
+  #loadingOverlay.show{ display:flex }
+  #loadingOverlay img{ width:min(60vw,260px); animation:float 3.5s ease-in-out infinite }
+  .load-spin{ width:36px; height:36px; border:4px solid rgba(0,0,0,.12); border-top-color:var(--orange);
+    border-radius:50%; animation:spin .7s linear infinite; margin-top:30px }
+  .load-text{ margin-top:16px; font-weight:700; color:var(--muted); letter-spacing:.5px }
+  @keyframes spin{to{transform:rotate(360deg)}}
 
   /* toast */
   .toast{
     position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(120px);
     background:var(--black); color:#fff; padding:16px 26px; border-radius:14px; font-weight:700; font-size:16px;
-    box-shadow:0 10px 30px rgba(0,0,0,.25); transition:transform .3s cubic-bezier(.2,.9,.3,1); max-width:90vw; text-align:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.25); transition:transform .3s cubic-bezier(.2,.9,.3,1); max-width:90vw; text-align:center; z-index:70;
   }
   .toast.show{transform:translateX(-50%) translateY(0)}
   .toast.err{background:#c62828}
   .toast.ok{background:var(--green)}
-
-  .spinner{display:inline-block; width:18px; height:18px; border:3px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:8px}
-  @keyframes spin{to{transform:rotate(360deg)}}
 
   .ver{text-align:center; margin-top:16px; font-size:11px; color:#bdbdbd}
   .ver a{color:#bdbdbd; text-decoration:underline; cursor:pointer}
@@ -76,52 +111,72 @@
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="brand">
-    <h1>busy<span class="ant">ANT</span></h1>
-    <p>Time Clock</p>
-  </div>
 
-  <div class="card">
-    <div class="clock-now" id="liveClock">—</div>
+<!-- big faint watermark behind everything -->
+<img class="watermark" src="logo.png" alt="">
 
-    <!-- PIN screen -->
-    <div id="pinScreen">
-      <div class="pin-display" id="pinDisplay">
-        <div class="pin-dot"></div><div class="pin-dot"></div>
-        <div class="pin-dot"></div><div class="pin-dot"></div>
+<!-- IDLE / ATTRACT SCREEN -->
+<div id="idleScreen">
+  <img class="idle-logo" src="logo.png" alt="busyANT Super Market">
+  <div class="idle-time" id="idleTime">—</div>
+  <div class="idle-date" id="idleDate">—</div>
+  <div class="idle-hint">Touch to begin</div>
+</div>
+
+<!-- header logo -->
+<div class="header"><img src="logo.png" alt="busyANT"></div>
+
+<div class="screen">
+  <div class="app">
+    <div class="card">
+      <div class="clock-now" id="liveClock">—</div>
+
+      <!-- PIN screen -->
+      <div id="pinScreen">
+        <div class="pin-display" id="pinDisplay">
+          <div class="pin-dot"></div><div class="pin-dot"></div>
+          <div class="pin-dot"></div><div class="pin-dot"></div>
+        </div>
+        <div class="keys">
+          <button class="key" data-k="1">1</button>
+          <button class="key" data-k="2">2</button>
+          <button class="key" data-k="3">3</button>
+          <button class="key" data-k="4">4</button>
+          <button class="key" data-k="5">5</button>
+          <button class="key" data-k="6">6</button>
+          <button class="key" data-k="7">7</button>
+          <button class="key" data-k="8">8</button>
+          <button class="key" data-k="9">9</button>
+          <button class="key ghost"></button>
+          <button class="key" data-k="0">0</button>
+          <button class="key action" data-k="del">⌫</button>
+        </div>
       </div>
-      <div class="keys">
-        <button class="key" data-k="1">1</button>
-        <button class="key" data-k="2">2</button>
-        <button class="key" data-k="3">3</button>
-        <button class="key" data-k="4">4</button>
-        <button class="key" data-k="5">5</button>
-        <button class="key" data-k="6">6</button>
-        <button class="key" data-k="7">7</button>
-        <button class="key" data-k="8">8</button>
-        <button class="key" data-k="9">9</button>
-        <button class="key ghost"></button>
-        <button class="key" data-k="0">0</button>
-        <button class="key action" data-k="del">⌫</button>
+
+      <!-- Status screen -->
+      <div id="statusScreen" class="hidden">
+        <div class="greet">Welcome</div>
+        <p class="who" id="whoName">—</p>
+        <span class="state-pill" id="statePill">—</span>
+        <div class="actions" id="actionButtons"></div>
+        <button class="btn-done" id="doneBtn">Done</button>
       </div>
     </div>
 
-    <!-- Status screen -->
-    <div id="statusScreen" class="hidden">
-      <div class="greet">Welcome</div>
-      <p class="who" id="whoName">—</p>
-      <span class="state-pill" id="statePill">—</span>
-      <div class="actions" id="actionButtons"></div>
-      <button class="btn btn-ghost" id="doneBtn">Done</button>
-    </div>
+    <div class="ver">v2.0 · <a id="refreshLink">refresh</a></div>
   </div>
-
-  <div class="ver">v1.0 · <a id="refreshLink">refresh</a></div>
 </div>
 
 <video id="cam" autoplay playsinline muted></video>
 <canvas id="canvas"></canvas>
+
+<!-- loading overlay -->
+<div id="loadingOverlay">
+  <img src="logo.png" alt="">
+  <div class="load-spin"></div>
+  <div class="load-text" id="loadText">Checking…</div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -144,8 +199,12 @@ const API = "https://busyant-proxy.pateltirth1211.workers.dev";
 let pin = "";
 let currentEmp = null;
 let camReady = false;
+let idleTimer = null;
+let confirmTimer = null;
+const IDLE_MS = 30000;      // 30s back to idle
+const CONFIRM_MS = 10000;   // 10s confirmation then idle
 
-/* ---- live clock ---- */
+/* ---- live clock (header + idle) ---- */
 function tickClock(){
   const d = new Date();
   let h = d.getHours(), m = d.getMinutes();
@@ -153,11 +212,41 @@ function tickClock(){
   h = h % 12 || 12;
   m = m < 10 ? "0"+m : m;
   const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const dfull=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const mons=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   document.getElementById("liveClock").textContent =
     `${days[d.getDay()]}, ${mons[d.getMonth()]} ${d.getDate()} · ${h}:${m} ${ap}`;
+  document.getElementById("idleTime").textContent = `${h}:${m} ${ap}`;
+  document.getElementById("idleDate").textContent = `${days[d.getDay()]}, ${dfull[d.getMonth()]} ${d.getDate()}`;
 }
 setInterval(tickClock, 1000); tickClock();
+
+/* ---- idle screen logic ---- */
+const idleEl = document.getElementById("idleScreen");
+function showIdle(){
+  clearTimeout(idleTimer); clearTimeout(confirmTimer);
+  goHome();                       // reset to PIN underneath
+  idleEl.classList.remove("fade");
+  idleEl.style.pointerEvents = "auto";
+}
+function wakeFromIdle(){
+  idleEl.classList.add("fade");
+  setTimeout(()=>{ idleEl.style.pointerEvents = "none"; }, 500);
+  resetIdleTimer();
+}
+idleEl.addEventListener("click", wakeFromIdle);
+
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(showIdle, IDLE_MS);
+}
+/* any interaction on the app resets the idle countdown */
+["click","touchstart","keydown"].forEach(ev=>{
+  document.addEventListener(ev, ()=>{
+    if(!idleEl.classList.contains("fade")) return; // ignore while idle is showing
+    resetIdleTimer();
+  }, {passive:true});
+});
 
 /* ---- camera warmup ---- */
 async function initCam(){
@@ -184,6 +273,13 @@ function snapPhoto(){
   }catch(e){ return ""; }
 }
 
+/* ---- loading overlay ---- */
+function showLoading(msg){
+  document.getElementById("loadText").textContent = msg || "Loading…";
+  document.getElementById("loadingOverlay").classList.add("show");
+}
+function hideLoading(){ document.getElementById("loadingOverlay").classList.remove("show"); }
+
 /* ---- PIN entry ---- */
 function renderPin(){
   const dots = document.querySelectorAll("#pinDisplay .pin-dot");
@@ -199,24 +295,24 @@ document.querySelectorAll(".key[data-k]").forEach(btn=>{
   });
 });
 
-/* ---- API call (text/plain POST with JSON body — CORS-safe, handles photos) ---- */
+/* ---- API ---- */
 async function api(payload){
   const res = await fetch(API, { method:"POST", body: JSON.stringify(payload) });
   const text = await res.text();
   let data = JSON.parse(text);
-  if (typeof data === "string") data = JSON.parse(data);  // unwrap if double-encoded
+  if (typeof data === "string") data = JSON.parse(data);
   return data;
 }
 
 async function checkPin(){
-  toast("Checking…", "", true);
+  showLoading("Checking…");
   try{
     const r = await api({action:"getStatus", pin});
+    hideLoading();
     if(!r.ok){ toast(r.error || "PIN not recognized", "err"); resetPin(); return; }
-    hideToast();
     currentEmp = {name:r.name, state:r.state, admin:r.admin};
     showStatus();
-  }catch(e){ toast("Connection error — try again", "err"); resetPin(); }
+  }catch(e){ hideLoading(); toast("Connection error — try again", "err"); resetPin(); }
 }
 
 function resetPin(){ pin=""; renderPin(); }
@@ -242,6 +338,7 @@ function showStatus(){
     pill.textContent = "Clocked out"; pill.className = "state-pill state-out";
     box.appendChild(mkBtn("Clock In", "btn-in", "IN"));
   }
+  resetIdleTimer();
 }
 
 function mkBtn(label, cls, type){
@@ -254,29 +351,32 @@ function mkBtn(label, cls, type){
 
 async function doPunch(type, btnEl){
   document.querySelectorAll("#actionButtons .btn").forEach(b=> b.disabled = true);
-  const orig = btnEl.textContent;
-  btnEl.innerHTML = '<span class="spinner"></span>Saving…';
-
   const photo = (type === "IN") ? snapPhoto() : "";
+  showLoading("Saving…");
   try{
     const r = await api({action:"punch", pin, type, photo});
-    if(!r.ok){ toast(r.error || "Could not save", "err"); btnEl.textContent = orig;
+    hideLoading();
+    if(!r.ok){ toast(r.error || "Could not save", "err");
       document.querySelectorAll("#actionButtons .btn").forEach(b=> b.disabled = false); return; }
     toast(r.message, "ok");
-    setTimeout(goHome, 1400);
+    /* show confirmation for 10s then auto-return to idle */
+    clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(showIdle, CONFIRM_MS);
   }catch(e){
+    hideLoading();
     toast("Connection error — try again", "err");
-    btnEl.textContent = orig;
     document.querySelectorAll("#actionButtons .btn").forEach(b=> b.disabled = false);
   }
 }
 
 function goHome(){
+  clearTimeout(confirmTimer);
   currentEmp = null; resetPin();
   document.getElementById("statusScreen").classList.add("hidden");
   document.getElementById("pinScreen").classList.remove("hidden");
 }
-document.getElementById("doneBtn").addEventListener("click", goHome);
+/* Done button = return to idle immediately */
+document.getElementById("doneBtn").addEventListener("click", showIdle);
 document.getElementById("refreshLink").addEventListener("click", ()=> location.reload(true));
 
 /* ---- toast ---- */
@@ -289,6 +389,9 @@ function toast(msg, kind, sticky){
   if(!sticky){ toastTimer = setTimeout(()=> t.classList.remove("show"), 2600); }
 }
 function hideToast(){ document.getElementById("toast").classList.remove("show"); }
+
+/* start on idle */
+showIdle();
 </script>
 </body>
 </html>

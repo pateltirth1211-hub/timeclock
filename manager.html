@@ -27,7 +27,7 @@
   .pin-dot{width:15px; height:15px; border-radius:50%; border:2px solid var(--line)}
   .pin-dot.filled{background:var(--orange); border-color:var(--orange)}
   .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
-  .key{height:60px; border:none; border-radius:14px; background:#f3efe9; font-size:24px; font-weight:700; cursor:pointer}
+  .key{height:60px; border:none; border-radius:14px; background:#f3efe9; color:var(--ink); font-size:24px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none}
   .key:active{background:#eae4db; transform:scale(.96)}
   .key.ghost{background:transparent}
   .key.action{background:var(--black); color:#fff; font-size:17px}
@@ -102,12 +102,43 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   .center{text-align:center; padding:30px}
   .hidden{display:none}
+
+  /* logo header + watermark */
+  .watermark{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:min(80vw,520px); opacity:.04; pointer-events:none; z-index:0 }
+  .wrap{ position:relative; z-index:1 }
+  .brand-logo{ height:48px; width:auto }
+
+  /* loading overlay */
+  #loadingOverlay{ position:fixed; inset:0; z-index:200; background:rgba(250,247,243,.96);
+    display:none; flex-direction:column; align-items:center; justify-content:center }
+  #loadingOverlay.show{ display:flex }
+  #loadingOverlay img{ width:min(55vw,240px); animation:floatm 3.5s ease-in-out infinite }
+  @keyframes floatm{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-14px) } }
+  .load-spin{ width:34px; height:34px; border:4px solid rgba(0,0,0,.12); border-top-color:var(--orange);
+    border-radius:50%; animation:spin .7s linear infinite; margin-top:26px }
+  .load-text{ margin-top:14px; font-weight:700; color:var(--muted) }
+
+  /* timesheet CARD layout (phone) */
+  .shift-card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px;
+    margin-bottom:10px; display:flex; gap:12px; align-items:flex-start }
+  .shift-card .sc-photo{ width:52px; height:52px; border-radius:10px; object-fit:cover; background:#eee; flex-shrink:0; cursor:pointer }
+  .shift-card .sc-noimg{ width:52px; height:52px; border-radius:10px; background:#f0f0f0; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:#bbb; font-weight:700 }
+  .sc-body{ flex:1; min-width:0 }
+  .sc-date{ font-weight:800; font-size:14px; margin-bottom:8px }
+  .sc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:13px }
+  .sc-grid .lbl{ color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.3px; display:block }
+  .sc-grid .val{ font-weight:700 }
+  .sc-flag{ color:var(--orange); font-weight:700; font-size:12px; margin-top:6px }
+  .sc-foot{ display:flex; justify-content:flex-end; margin-top:10px }
 </style>
 </head>
 <body>
+<img class="watermark" src="logo.png" alt="">
 <div class="wrap">
   <div class="brand">
-    <h1>busy<span class="ant">ANT</span></h1>
+    <img class="brand-logo" src="logo.png" alt="busyANT">
     <p>Manager</p>
   </div>
 
@@ -178,6 +209,12 @@
 
 <div class="toast" id="toast"></div>
 
+<div id="loadingOverlay">
+  <img src="logo.png" alt="">
+  <div class="load-spin"></div>
+  <div class="load-text" id="loadText">Loading…</div>
+</div>
+
 <script>
 const API = "https://busyant-proxy.pateltirth1211.workers.dev";
 
@@ -208,17 +245,17 @@ document.querySelectorAll("#loginView .key[data-k]").forEach(btn=>{
   });
 });
 async function tryLogin(){
-  toast("Checking…","",true);
+  showLoading("Checking…");
   try{
     const r = await api({action:"getLiveStatus", pin:pinEntry});
+    hideLoading();
     if(!r.ok){ toast("Not an admin PIN","err"); pinEntry=""; renderPin(); return; }
     adminPin = pinEntry;
-    hideToast();
     document.getElementById("loginView").classList.add("hidden");
     document.getElementById("appView").classList.remove("hidden");
     renderLive(r.onShift);
     setDefaultDates();
-  }catch(e){ toast("Connection error","err"); pinEntry=""; renderPin(); }
+  }catch(e){ hideLoading(); toast("Connection error","err"); pinEntry=""; renderPin(); }
 }
 
 /* ---- tabs ---- */
@@ -297,9 +334,7 @@ function renderSheets(rows){
     const list = byName[name];
     let sub = 0;
     let subPay = 0;
-    html += `<div class="name-sub" style="margin:14px 0 6px">${esc(name)}</div>`;
-    html += `<table class="ts-table"><thead><tr>
-      <th>Date</th><th>In</th><th>Break</th><th>Out</th><th>Hrs</th><th>Pay</th><th>Flag</th><th></th><th></th></tr></thead><tbody>`;
+    html += `<div class="name-sub" style="margin:16px 0 8px;font-size:16px">${esc(name)}</div>`;
     list.forEach(r=>{
       const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
       const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
@@ -307,26 +342,30 @@ function renderSheets(rows){
       subPay += pay;
       const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
       const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
-      html += `<tr>
-        <td>${esc(r.date)}</td>
-        <td>${esc(cleanTime(r.clockIn)||"—")}</td>
-        <td>${esc(brk)}</td>
-        <td>${esc(cleanTime(r.clockOut)||"—")}</td>
-        <td><b>${hrs?hrs.toFixed(2):"—"}</b></td>
-        <td>${pay?"$"+pay.toFixed(2):"—"}</td>
-        <td class="flagcell">${esc(r.flag||"")}</td>
-        <td>${r.photo?`<img class="thumb" src="${r.photo}" data-full="${r.photo}">`:""}</td>
-        <td><button class="btn btn-dark btn-sm" data-edit="${r.row}">Edit</button></td>
-      </tr>`;
+      const pic = r.photo ? `<img class="sc-photo" src="${r.photo}" data-full="${r.photo}">` : `<div class="sc-noimg">—</div>`;
+      html += `<div class="shift-card">
+        ${pic}
+        <div class="sc-body">
+          <div class="sc-date">${esc(r.date)}</div>
+          <div class="sc-grid">
+            <div><span class="lbl">In</span><span class="val">${esc(cleanTime(r.clockIn)||"—")}</span></div>
+            <div><span class="lbl">Out</span><span class="val">${esc(cleanTime(r.clockOut)||"—")}</span></div>
+            <div><span class="lbl">Break</span><span class="val">${esc(brk)}</span></div>
+            <div><span class="lbl">Hours</span><span class="val">${hrs?hrs.toFixed(2):"—"}</span></div>
+            <div><span class="lbl">Pay</span><span class="val">${pay?"$"+pay.toFixed(2):"—"}</span></div>
+          </div>
+          ${r.flag?`<div class="sc-flag">${esc(r.flag)}</div>`:""}
+          <div class="sc-foot"><button class="btn btn-dark btn-sm" data-edit="${r.row}">Edit</button></div>
+        </div>
+      </div>`;
     });
-    html += `</tbody></table>`;
     grand += sub;
     grandPay += subPay;
   });
   html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
   box.innerHTML = html;
 
-  box.querySelectorAll(".thumb").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
+  box.querySelectorAll(".sc-photo").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
   box.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openEdit(b.dataset.edit)));
 }
 
@@ -498,6 +537,8 @@ function toast(msg, kind, sticky){
   if(!sticky) toastTimer = setTimeout(()=> t.classList.remove("show"), 2600);
 }
 function hideToast(){ document.getElementById("toast").classList.remove("show"); }
+function showLoading(msg){ document.getElementById("loadText").textContent = msg||"Loading…"; document.getElementById("loadingOverlay").classList.add("show"); }
+function hideLoading(){ document.getElementById("loadingOverlay").classList.remove("show"); }
 </script>
 </body>
 </html>
