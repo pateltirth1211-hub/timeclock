@@ -63,8 +63,9 @@
   .btn-dark{background:var(--black); color:#fff}
   .btn-sm{padding:8px 12px; font-size:13px; border-radius:10px}
   .btn-row{display:flex; gap:10px; flex-wrap:wrap}
-  .date-row{display:flex; gap:10px}
-  .date-row .field{flex:1}
+  .date-row{display:flex; gap:10px; flex-wrap:wrap}
+  .date-row .field{flex:1; min-width:140px}
+  input[type=date]{min-width:0}
 
   /* timesheet table */
   .ts-table{width:100%; border-collapse:collapse; font-size:13px}
@@ -183,6 +184,7 @@
       <div class="btn-row">
         <button class="btn btn-primary" id="loadSheets">View</button>
         <button class="btn btn-dark" id="exportCsv">Export CSV</button>
+        <button class="btn btn-dark" id="addEntryBtn">+ Add Entry</button>
       </div>
       <div id="sheetsResult" style="margin-top:16px"></div>
     </div>
@@ -361,6 +363,7 @@ function renderSheets(rows){
     });
     grand += sub;
     grandPay += subPay;
+    html += `<div class="totals" style="margin-bottom:6px"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
   });
   html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
   box.innerHTML = html;
@@ -436,6 +439,52 @@ function from24(id){
   const ap = hh>=12 ? "PM":"AM";
   hh = hh%12 || 12;
   return hh+":"+mm+" "+ap;
+}
+
+/* ---- Add manual entry ---- */
+document.getElementById("addEntryBtn").addEventListener("click", openAddEntry);
+async function openAddEntry(){
+  // fetch employees for the picker
+  showLoading("Loading…");
+  let emps = [];
+  try{
+    const r = await api({action:"getEmployees", pin:adminPin});
+    if(r.ok) emps = r.employees.filter(e=>e.active);
+  }catch(e){}
+  hideLoading();
+  if(!emps.length){ toast("No active employees","err"); return; }
+
+  const today = iso(new Date());
+  const opts = emps.map(e=>`<option value="${esc(e.name)}">${esc(e.name)}</option>`).join("");
+  const m = document.getElementById("modalBox");
+  m.innerHTML = `
+    <h3>Add manual entry</h3>
+    <p class="muted" style="margin-top:-8px;font-size:13px">Fill any times you know. Leave Clock Out blank to let the employee finish on the tablet.</p>
+    <div class="field"><label>Employee</label>
+      <select id="aeName" style="width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#fff">${opts}</select></div>
+    <div class="field"><label>Date</label><input type="date" id="aeDate" value="${today}"></div>
+    <div class="field"><label>Clock In</label><input type="time" id="aeIn"></div>
+    <div class="field"><label>Break Out</label><input type="time" id="aeBo"></div>
+    <div class="field"><label>Break In</label><input type="time" id="aeBi"></div>
+    <div class="field"><label>Clock Out</label><input type="time" id="aeOut"></div>
+    <div class="btn-row" style="margin-top:8px">
+      <button class="btn btn-primary" id="saveEntry">Add Entry</button>
+      <button class="btn btn-dark" id="closeModal">Cancel</button>
+    </div>`;
+  document.getElementById("overlay").classList.add("show");
+  document.getElementById("closeModal").addEventListener("click", closeModal);
+  document.getElementById("saveEntry").addEventListener("click", async ()=>{
+    const name = document.getElementById("aeName").value;
+    const date = document.getElementById("aeDate").value;
+    if(!name || !date){ toast("Pick an employee and date","err"); return; }
+    const ci = from24("aeIn");
+    if(!ci && !from24("aeOut")){ toast("Enter at least a Clock In time","err"); return; }
+    const btn = document.getElementById("saveEntry"); btn.innerHTML='<span class="spinner"></span>Saving…'; btn.disabled=true;
+    const res = await api({action:"addEntry", pin:adminPin, name, date,
+      clockIn:ci, breakOut:from24("aeBo"), breakIn:from24("aeBi"), clockOut:from24("aeOut")});
+    if(res.ok){ toast(res.message,"ok"); closeModal(); loadSheets(); }
+    else { toast(res.error||"Error","err"); btn.innerHTML="Add Entry"; btn.disabled=false; }
+  });
 }
 
 function showPhoto(src){
