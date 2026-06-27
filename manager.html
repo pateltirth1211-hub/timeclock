@@ -55,17 +55,24 @@
   /* controls */
   .field{margin-bottom:12px}
   .field label{display:block; font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px}
-  input[type=text],input[type=number],input[type=date],input[type=password]{
-    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font-size:16px; font-family:inherit; background:#fff
+  input[type=text],input[type=number],input[type=date],input[type=time],input[type=password],input[type=tel]{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font-size:16px; font-family:inherit; background:#fff;
+    -webkit-appearance:none; appearance:none; color:var(--ink); text-align:left; min-height:48px;
   }
+  /* iOS date/time pickers align their text left and fill width */
+  input[type=date],input[type=time]{ -webkit-appearance:none; display:block; }
+  input[type=date]::-webkit-date-and-time-value,
+  input[type=time]::-webkit-date-and-time-value{ text-align:left; }
   .btn{border:none; border-radius:12px; padding:13px 18px; font-size:15px; font-weight:800; cursor:pointer}
   .btn-primary{background:var(--orange); color:#fff}
   .btn-dark{background:var(--black); color:#fff}
   .btn-sm{padding:8px 12px; font-size:13px; border-radius:10px}
   .btn-row{display:flex; gap:10px; flex-wrap:wrap}
-  .date-row{display:flex; gap:10px; flex-wrap:wrap}
-  .date-row .field{flex:1; min-width:140px}
-  input[type=date]{min-width:0}
+  .date-row{display:flex; gap:10px}
+  .date-row .field{flex:1; min-width:0}
+  @media (max-width:480px){
+    .date-row{flex-direction:column; gap:0}
+  }
 
   /* timesheet table */
   .ts-table{width:100%; border-collapse:collapse; font-size:13px}
