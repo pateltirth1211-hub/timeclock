@@ -148,6 +148,13 @@
     border-radius:14px; padding:16px; margin-bottom:16px; display:none }
   .today-card.show{ display:block }
   .today-card h3{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted) }
+  .today-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:8px }
+  .today-daterow{ display:flex; flex-direction:column; align-items:center; gap:4px; flex:1 }
+  .today-daterow input[type=date]{ width:auto; min-height:34px; padding:6px 10px; font-size:13px; border-radius:10px; text-align:center }
+  .day-arrow{ width:40px; height:40px; flex-shrink:0; border:1px solid var(--line); background:#fff; border-radius:12px;
+    font-size:22px; font-weight:800; color:var(--ink); cursor:pointer; line-height:1; -webkit-appearance:none; appearance:none }
+  .day-arrow:active{ background:#f0ece6 }
+  .day-arrow:disabled{ opacity:.3; cursor:default }
   .today-stats{ display:flex; gap:18px; flex-wrap:wrap }
   .today-stat .num{ font-size:24px; font-weight:800 }
   .today-stat .num.orange{ color:var(--orange) }
@@ -337,19 +344,58 @@ async function loadLive(){
   loadTodaySummary();
 }
 
+let summaryDate = null; // yyyy-mm-dd; null = today
 async function loadTodaySummary(){
   try{
-    const r = await api({action:"getTodaySummary", pin:adminPin});
+    const dateParam = summaryDate || iso(new Date());
+    const r = await api({action:"getTodaySummary", pin:adminPin, date:dateParam});
     if(!r.ok) return;
     const box = document.getElementById("todaySummary");
-    box.innerHTML = `<h3>Today</h3>
+    const isToday = dateParam === iso(new Date());
+    const label = isToday ? "Today" : prettyDate(dateParam);
+    const atToday = isToday; // disable the "next" arrow at today (no future days)
+    const thirdStat = isToday
+      ? `<div class="today-stat"><div class="num">${r.onShift}</div><div class="lbl">on shift now</div></div>`
+      : `<div class="today-stat"><div class="num">${r.people}</div><div class="lbl">worked</div></div>`;
+    box.innerHTML = `
+      <div class="today-head">
+        <button class="day-arrow" id="dayPrev">‹</button>
+        <div class="today-daterow">
+          <h3 style="margin:0">${label}</h3>
+          <input type="date" id="dayPicker" value="${dateParam}" max="${iso(new Date())}">
+        </div>
+        <button class="day-arrow" id="dayNext" ${atToday?'disabled':''}>›</button>
+      </div>
       <div class="today-stats">
         <div class="today-stat"><div class="num">${r.hours.toFixed(2)}</div><div class="lbl">hours done</div></div>
         <div class="today-stat"><div class="num orange">$${r.pay.toFixed(2)}</div><div class="lbl">labor cost</div></div>
-        <div class="today-stat"><div class="num">${r.onShift}</div><div class="lbl">on shift now</div></div>
+        ${thirdStat}
       </div>`;
     box.classList.add("show");
+    document.getElementById("dayPrev").addEventListener("click", ()=>{ shiftDay(-1); });
+    document.getElementById("dayNext").addEventListener("click", ()=>{ shiftDay(1); });
+    document.getElementById("dayPicker").addEventListener("change", e=>{
+      summaryDate = e.target.value; loadTodaySummary();
+    });
   }catch(e){}
+}
+function shiftDay(delta){
+  const cur = summaryDate || iso(new Date());
+  const parts = cur.split("-");
+  const d = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+  d.setDate(d.getDate()+delta);
+  const todayIso = iso(new Date());
+  const next = iso(d);
+  if(next > todayIso) return; // never go past today
+  summaryDate = next === todayIso ? null : next;
+  loadTodaySummary();
+}
+function prettyDate(isoStr){
+  const parts = isoStr.split("-");
+  const d = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+  const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const mons=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${days[d.getDay()]}, ${mons[d.getMonth()]} ${d.getDate()}`;
 }
 
 let empNames = [];
