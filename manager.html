@@ -142,6 +142,28 @@
   .sc-grid .val{ font-weight:700 }
   .sc-flag{ color:var(--orange); font-weight:700; font-size:12px; margin-top:6px }
   .sc-foot{ display:flex; justify-content:flex-end; margin-top:10px }
+
+  /* today summary card */
+  .today-card{ background:linear-gradient(135deg,#fff7f0,#fdfaf6); border:1px solid var(--line);
+    border-radius:14px; padding:16px; margin-bottom:16px; display:none }
+  .today-card.show{ display:block }
+  .today-card h3{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted) }
+  .today-stats{ display:flex; gap:18px; flex-wrap:wrap }
+  .today-stat .num{ font-size:24px; font-weight:800 }
+  .today-stat .num.orange{ color:var(--orange) }
+  .today-stat .lbl{ font-size:12px; color:var(--muted); font-weight:600 }
+
+  /* overtime highlighting */
+  .ot-week{ background:#fff3e0; border-color:#ffcc80 }
+  .ot-badge{ display:inline-block; background:var(--orange); color:#fff; font-size:11px; font-weight:800;
+    padding:2px 8px; border-radius:999px; letter-spacing:.3px; margin-left:6px; vertical-align:1px }
+  .ot-line{ font-size:13px; color:var(--orange); font-weight:700; margin-top:2px }
+
+  /* history view */
+  .log-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px }
+  .log-top{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:4px }
+  .log-change{ font-weight:700; font-size:14px }
+  .log-note{ font-size:13px; color:var(--muted); font-style:italic; margin-top:4px }
 </style>
 </head>
 <body>
@@ -176,6 +198,7 @@
 
     <!-- LIVE -->
     <div id="liveTab" class="card">
+      <div id="todaySummary" class="today-card"></div>
       <h2>Working right now</h2>
       <div id="liveList"><div class="center"><span class="spinner"></span></div></div>
       <div class="btn-row" style="margin-top:14px">
@@ -190,10 +213,16 @@
         <div class="field"><label>From</label><input type="date" id="startDate"></div>
         <div class="field"><label>To</label><input type="date" id="endDate"></div>
       </div>
+      <div class="field"><label>Employee</label>
+        <select id="empFilter" style="width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#fff;min-height:50px">
+          <option value="">All employees</option>
+        </select>
+      </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="loadSheets">View</button>
         <button class="btn btn-dark" id="exportCsv">Export CSV</button>
         <button class="btn btn-dark" id="addEntryBtn">+ Add Entry</button>
+        <button class="btn btn-dark" id="historyBtn">History</button>
       </div>
       <div id="sheetsResult" style="margin-top:16px"></div>
     </div>
@@ -246,6 +275,7 @@ const API = "https://busyant-proxy.pateltirth1211.workers.dev";
 let adminPin = "";
 let pinEntry = "";
 let lastRows = [];
+let rateCache = {};
 
 /* ---- API (text/plain POST with JSON body — CORS-safe, handles photos) ---- */
 async function api(payload){
@@ -279,6 +309,8 @@ async function tryLogin(){
     document.getElementById("loginView").classList.add("hidden");
     document.getElementById("appView").classList.remove("hidden");
     renderLive(r.onShift);
+    loadTodaySummary();
+    populateEmpFilter();
     setDefaultDates();
   }catch(e){ hideLoading(); toast("Connection error","err"); pinEntry=""; renderPin(); }
 }
@@ -302,6 +334,35 @@ async function loadLive(){
   document.getElementById("liveList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
   const r = await api({action:"getLiveStatus", pin:adminPin});
   if(r.ok) renderLive(r.onShift);
+  loadTodaySummary();
+}
+
+async function loadTodaySummary(){
+  try{
+    const r = await api({action:"getTodaySummary", pin:adminPin});
+    if(!r.ok) return;
+    const box = document.getElementById("todaySummary");
+    box.innerHTML = `<h3>Today</h3>
+      <div class="today-stats">
+        <div class="today-stat"><div class="num">${r.hours.toFixed(2)}</div><div class="lbl">hours done</div></div>
+        <div class="today-stat"><div class="num orange">$${r.pay.toFixed(2)}</div><div class="lbl">labor cost</div></div>
+        <div class="today-stat"><div class="num">${r.onShift}</div><div class="lbl">on shift now</div></div>
+      </div>`;
+    box.classList.add("show");
+  }catch(e){}
+}
+
+let empNames = [];
+async function populateEmpFilter(){
+  try{
+    const r = await api({action:"getEmployees", pin:adminPin});
+    if(!r.ok) return;
+    empNames = r.employees.map(e=>e.name);
+    r.employees.forEach(e=>{ rateCache[e.name] = e.rate; });
+    const sel = document.getElementById("empFilter");
+    sel.innerHTML = '<option value="">All employees</option>' +
+      empNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  }catch(e){}
 }
 function renderLive(list){
   const box = document.getElementById("liveList");
@@ -334,6 +395,7 @@ function iso(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDat
 function pad(n){ return n<10?"0"+n:n; }
 
 document.getElementById("loadSheets").addEventListener("click", loadSheets);
+document.getElementById("empFilter").addEventListener("change", ()=>{ if(lastRows.length) renderSheets(lastRows); });
 async function loadSheets(){
   const start = document.getElementById("startDate").value;
   const end = document.getElementById("endDate").value;
@@ -344,8 +406,10 @@ async function loadSheets(){
   lastRows = r.rows;
   renderSheets(r.rows);
 }
-function renderSheets(rows){
+function renderSheets(allRows){
   const box = document.getElementById("sheetsResult");
+  const filter = document.getElementById("empFilter").value;
+  const rows = filter ? allRows.filter(r=>r.name===filter) : allRows;
   if(!rows.length){ box.innerHTML = '<div class="row-empty">No shifts in this range.</div>'; return; }
 
   // group by employee
@@ -353,25 +417,35 @@ function renderSheets(rows){
   rows.forEach(r=>{ (byName[r.name]=byName[r.name]||[]).push(r); });
 
   let html = "";
-  let grand = 0;
-  let grandPay = 0;
+  let grand = 0, grandPay = 0, grandOtHrs = 0, grandOtPrem = 0;
   Object.keys(byName).sort().forEach(name=>{
     const list = byName[name];
-    let sub = 0;
-    let subPay = 0;
+    const rate = rateForNameLocal(name);
+
+    // weekly hours for OT detection
+    const weekHrs = {};
+    list.forEach(r=>{
+      const h = (r.hours===""||r.hours==null)?0:Number(r.hours);
+      weekHrs[r.week] = (weekHrs[r.week]||0) + h;
+    });
+    // OT hours per week = hours over 40
+    const weekOt = {};
+    Object.keys(weekHrs).forEach(w=>{ weekOt[w] = Math.max(0, weekHrs[w]-40); });
+
+    let sub = 0, subPay = 0, subOtHrs = 0, subOtPrem = 0;
     html += `<div class="name-sub" style="margin:16px 0 8px;font-size:16px">${esc(name)}</div>`;
     list.forEach(r=>{
       const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
       const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
-      sub += hrs;
-      subPay += pay;
+      sub += hrs; subPay += pay;
+      const otWeek = weekOt[r.week] > 0;
       const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
       const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
       const pic = r.photo ? `<img class="sc-photo" src="${r.photo}" data-full="${r.photo}">` : `<div class="sc-noimg">—</div>`;
-      html += `<div class="shift-card">
+      html += `<div class="shift-card${otWeek?' ot-week':''}">
         ${pic}
         <div class="sc-body">
-          <div class="sc-date">${esc(r.date)}</div>
+          <div class="sc-date">${esc(r.date)}${otWeek?'<span class="ot-badge">OT week</span>':''}</div>
           <div class="sc-grid">
             <div><span class="lbl">In</span><span class="val">${esc(cleanTime(r.clockIn)||"—")}</span></div>
             <div><span class="lbl">Out</span><span class="val">${esc(cleanTime(r.clockOut)||"—")}</span></div>
@@ -384,16 +458,34 @@ function renderSheets(rows){
         </div>
       </div>`;
     });
-    grand += sub;
-    grandPay += subPay;
-    html += `<div class="totals" style="margin-bottom:6px"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
+
+    // OT premium = 0.5 * rate * OT hours (straight time already counted in subPay)
+    Object.keys(weekOt).forEach(w=>{
+      if(weekOt[w]>0){ subOtHrs += weekOt[w]; subOtPrem += 0.5*rate*weekOt[w]; }
+    });
+    subOtPrem = Math.round(subOtPrem*100)/100;
+
+    grand += sub; grandPay += subPay; grandOtHrs += subOtHrs; grandOtPrem += subOtPrem;
+
+    let totalLine = `<div class="totals" style="margin-bottom:2px"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
+    if(subOtHrs>0){
+      totalLine += `<div class="ot-line" style="margin-bottom:8px">${subOtHrs.toFixed(2)} OT hrs · +$${subOtPrem.toFixed(2)} premium · <b>$${(subPay+subOtPrem).toFixed(2)} with OT</b></div>`;
+    }
+    html += totalLine;
   });
-  html += `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
+
+  let grandHtml = `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
+  if(grandOtPrem>0){
+    grandHtml += `<div class="ot-line" style="text-align:right">incl. ${grandOtHrs.toFixed(2)} OT hrs · +$${grandOtPrem.toFixed(2)} · <b>$${(grandPay+grandOtPrem).toFixed(2)} total with OT</b></div>`;
+  }
+  html += grandHtml;
   box.innerHTML = html;
 
   box.querySelectorAll(".sc-photo").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
   box.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openEdit(b.dataset.edit)));
 }
+/* local rate lookup from cached staff (populated by populateEmpFilter / loadStaff) */
+function rateForNameLocal(name){ return rateCache[name]||0; }
 
 /* ---- CSV export ---- */
 document.getElementById("exportCsv").addEventListener("click", ()=>{
@@ -424,6 +516,7 @@ function openEdit(row){
     <div class="field"><label>Break Out</label><input type="time" id="eBo" value="${to24(r.breakOut)}"></div>
     <div class="field"><label>Break In</label><input type="time" id="eBi" value="${to24(r.breakIn)}"></div>
     <div class="field"><label>Clock Out</label><input type="time" id="eOut" value="${to24(r.clockOut)}"></div>
+    <div class="field"><label>Note (optional)</label><input type="text" id="eNote" placeholder="e.g. forgot to punch out"></div>
     <div class="btn-row" style="margin-top:8px">
       <button class="btn btn-primary" id="saveEdit">Save</button>
       <button class="btn btn-dark" id="closeModal">Cancel</button>
@@ -434,7 +527,8 @@ function openEdit(row){
     const btn = document.getElementById("saveEdit");
     btn.innerHTML = '<span class="spinner"></span>Saving…'; btn.disabled = true;
     const res = await api({action:"editPunch", pin:adminPin, row:r.row,
-      clockIn:from24("eIn"), breakOut:from24("eBo"), breakIn:from24("eBi"), clockOut:from24("eOut")});
+      clockIn:from24("eIn"), breakOut:from24("eBo"), breakIn:from24("eBi"), clockOut:from24("eOut"),
+      note:val("eNote")});
     if(res.ok){ toast(res.message,"ok"); closeModal(); loadSheets(); }
     else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
   });
@@ -464,6 +558,26 @@ function from24(id){
   return hh+":"+mm+" "+ap;
 }
 
+/* ---- Edit history ---- */
+document.getElementById("historyBtn").addEventListener("click", openHistory);
+async function openHistory(){
+  const box = document.getElementById("sheetsResult");
+  box.innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  const r = await api({action:"getEditLog", pin:adminPin});
+  if(!r.ok){ box.innerHTML = '<div class="row-empty">'+esc(r.error||"Error")+'</div>'; return; }
+  if(!r.rows.length){ box.innerHTML = '<div class="row-empty">No edits logged yet.</div>'; return; }
+  let html = `<div class="name-sub" style="margin:8px 0 10px;font-size:16px">Edit history</div>`;
+  r.rows.forEach(e=>{
+    html += `<div class="log-card">
+      <div class="log-top"><span>${esc(e.admin||"—")} · ${esc(e.employee||"")}</span><span>${esc(e.when)}</span></div>
+      <div class="log-change">${esc(e.change||"")}</div>
+      <div class="muted" style="font-size:12px;margin-top:2px">Shift date: ${esc(e.date||"—")}</div>
+      ${e.note?`<div class="log-note">"${esc(e.note)}"</div>`:""}
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
 /* ---- Add manual entry ---- */
 document.getElementById("addEntryBtn").addEventListener("click", openAddEntry);
 async function openAddEntry(){
@@ -490,6 +604,7 @@ async function openAddEntry(){
     <div class="field"><label>Break Out</label><input type="time" id="aeBo"></div>
     <div class="field"><label>Break In</label><input type="time" id="aeBi"></div>
     <div class="field"><label>Clock Out</label><input type="time" id="aeOut"></div>
+    <div class="field"><label>Note (optional)</label><input type="text" id="aeNote" placeholder="e.g. forgot to clock in"></div>
     <div class="btn-row" style="margin-top:8px">
       <button class="btn btn-primary" id="saveEntry">Add Entry</button>
       <button class="btn btn-dark" id="closeModal">Cancel</button>
@@ -504,7 +619,8 @@ async function openAddEntry(){
     if(!ci && !from24("aeOut")){ toast("Enter at least a Clock In time","err"); return; }
     const btn = document.getElementById("saveEntry"); btn.innerHTML='<span class="spinner"></span>Saving…'; btn.disabled=true;
     const res = await api({action:"addEntry", pin:adminPin, name, date,
-      clockIn:ci, breakOut:from24("aeBo"), breakIn:from24("aeBi"), clockOut:from24("aeOut")});
+      clockIn:ci, breakOut:from24("aeBo"), breakIn:from24("aeBi"), clockOut:from24("aeOut"),
+      note:val("aeNote")});
     if(res.ok){ toast(res.message,"ok"); closeModal(); loadSheets(); }
     else { toast(res.error||"Error","err"); btn.innerHTML="Add Entry"; btn.disabled=false; }
   });
