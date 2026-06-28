@@ -51,6 +51,8 @@
   .badge{padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px}
   .badge-working{background:#e7f3e8; color:var(--green)}
   .badge-break{background:#fff3e0; color:var(--orange)}
+  .badge-out{background:#f0f0f0; color:var(--muted)}
+  .badge-auto{background:#fdeaea; color:#c0392b}
 
   /* controls */
   .field{margin-bottom:12px}
@@ -188,6 +190,44 @@
   .grand-total{ display:flex; justify-content:space-between; align-items:center; background:var(--orange); color:#fff;
     font-weight:800; font-size:17px; padding:14px 16px; border-radius:14px; margin-top:6px }
 
+  /* labor cost header */
+  .labor-head{ text-align:center; margin-bottom:18px }
+  .labor-daynav{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px }
+  .labor-daylabel{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px }
+  .labor-daylabel #laborDayName{ font-weight:800; font-size:15px }
+  .labor-daylabel input[type=date]{ width:auto; min-height:32px; padding:5px 10px; font-size:12px; border-radius:9px; text-align:center }
+  .labor-cost-big{ font-size:40px; font-weight:800; letter-spacing:-1px; line-height:1 }
+  .labor-cost-sub{ font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:4px }
+
+  /* hourly bar chart */
+  .labor-chart{ display:flex; align-items:flex-end; gap:3px; height:160px; padding:10px 0 0; margin-bottom:6px;
+    border-bottom:2px solid var(--line); overflow-x:auto }
+  .lc-bar-wrap{ flex:1; min-width:13px; display:flex; flex-direction:column; align-items:center; height:100% ; justify-content:flex-end }
+  .lc-bar{ width:70%; background:var(--orange); border-radius:4px 4px 0 0; min-height:2px; transition:height .2s }
+  .lc-bar.empty{ background:#ececec }
+  .lc-hourlabels{ display:flex; gap:3px; margin-bottom:18px; font-size:10px; color:var(--muted) }
+  .lc-hourlabels span{ flex:1; min-width:13px; text-align:center }
+
+  /* team filters */
+  .team-filters{ margin-bottom:12px }
+  .team-search{ width:100%; padding:11px 14px; border:1px solid var(--line); border-radius:12px; font-size:15px;
+    -webkit-appearance:none; appearance:none; margin-bottom:10px }
+  .team-tabs{ display:flex; gap:6px; flex-wrap:wrap }
+  .team-tab{ flex:1; min-width:64px; border:1px solid var(--line); background:#fff; color:var(--muted); border-radius:10px;
+    padding:9px 6px; font-size:13px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none; touch-action:manipulation }
+  .team-tab.active{ background:var(--black); color:#fff; border-color:var(--black) }
+
+  /* title pills (color-coded by role) */
+  .title-pill{ display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px;
+    letter-spacing:.2px; vertical-align:1px }
+  .t-deli{ background:#fde2e0; color:#c0392b }
+  .t-cashier{ background:#dfeffc; color:#1d6fb8 }
+  .t-stocker{ background:#e3f4e4; color:#2e7d32 }
+  .t-meat{ background:#f3e0ef; color:#9b2d8e }
+  .t-manager{ background:#fff0d9; color:#c47a16 }
+  .t-owner{ background:#1a1a1a; color:#fff }
+  .t-none{ background:#eee; color:#999 }
+
   /* history view */
   .log-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px }
   .log-top{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:4px }
@@ -225,10 +265,35 @@
       <button class="tab" data-tab="staff">Staff</button>
     </div>
 
-    <!-- LIVE -->
+    <!-- LIVE / ON SHIFT -->
     <div id="liveTab" class="card">
-      <div id="todaySummary" class="today-card"></div>
-      <h2>Working right now</h2>
+      <!-- labor cost header with day nav -->
+      <div class="labor-head">
+        <div class="labor-daynav">
+          <button class="day-arrow" id="laborPrev">‹</button>
+          <div class="labor-daylabel">
+            <div id="laborDayName">Today</div>
+            <input type="date" id="laborDate" max="">
+          </div>
+          <button class="day-arrow" id="laborNext">›</button>
+        </div>
+        <div class="labor-cost-big" id="laborCostBig">$0.00</div>
+        <div class="labor-cost-sub" id="laborCostSub">Labor cost</div>
+      </div>
+
+      <!-- hourly bar chart -->
+      <div id="laborChart" class="labor-chart"></div>
+
+      <!-- team list with filters -->
+      <div class="team-filters">
+        <input type="text" id="teamSearch" placeholder="Search name…" class="team-search">
+        <div class="team-tabs">
+          <button class="team-tab active" data-status="ALL">All</button>
+          <button class="team-tab" data-status="IN">In</button>
+          <button class="team-tab" data-status="OUT">Out</button>
+          <button class="team-tab" data-status="AUTO_OUT">Auto out</button>
+        </div>
+      </div>
       <div id="liveList"><div class="center"><span class="spinner"></span></div></div>
       <div class="btn-row" style="margin-top:14px">
         <button class="btn btn-dark btn-sm" id="liveRefresh">Refresh</button>
@@ -337,10 +402,9 @@ async function tryLogin(){
     adminPin = pinEntry;
     document.getElementById("loginView").classList.add("hidden");
     document.getElementById("appView").classList.remove("hidden");
-    renderLive(r.onShift);
-    loadTodaySummary();
     populateEmpFilter();
     setDefaultDates();
+    loadLive();
   }catch(e){ hideLoading(); toast("Connection error","err"); pinEntry=""; renderPin(); }
 }
 
@@ -358,91 +422,154 @@ document.querySelectorAll(".tab").forEach(t=>{
   });
 });
 
-/* ---- live ---- */
-async function loadLive(){
-  document.getElementById("liveList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
-  const r = await api({action:"getLiveStatus", pin:adminPin});
-  if(r.ok) renderLive(r.onShift);
-  // refresh today's numbers (force, since they change live); keeps current viewed day
-  const todayIso = iso(new Date());
-  delete summaryCache[todayIso];
-  loadTodaySummary(true);
-}
+/* ---- ON SHIFT / LABOR VIEW ---- */
+let laborDate = null;       // yyyy-mm-dd; null = today
+let teamCache = {};         // date -> {team, labor}
+let teamFilter = "ALL";
+let teamSearchText = "";
 
-let summaryDate = null; // yyyy-mm-dd; null = today
-let summaryCache = {};  // date -> result, instant for already-seen days
-
-async function loadTodaySummary(force){
-  const dateParam = summaryDate || iso(new Date());
+async function loadLive(force){
+  const dateParam = laborDate || iso(new Date());
   const isToday = dateParam === iso(new Date());
 
-  // today is always re-fetched (live), past days use cache if present
-  if(!force && !isToday && summaryCache[dateParam]){
-    renderTodayCard(summaryCache[dateParam], dateParam);
+  // past days can use cache; today always refreshes
+  if(!force && !isToday && teamCache[dateParam]){
+    renderLabor(teamCache[dateParam], dateParam);
     return;
   }
-
-  // instant feedback: render the date header now, spinner on the numbers
-  renderTodayCard(null, dateParam);
+  // instant header, spinners for data
+  renderLaborShell(dateParam, true);
 
   try{
-    const r = await api({action:"getTodaySummary", pin:adminPin, date:dateParam});
-    if(!r.ok) return;
-    summaryCache[dateParam] = r;
-    // only render if the user is still on this date (avoids flicker from fast clicks)
-    if((summaryDate || iso(new Date())) === dateParam) renderTodayCard(r, dateParam);
+    const [teamR, laborR] = await Promise.all([
+      api({action:"getTeamDay", pin:adminPin, date:dateParam}),
+      api({action:"getHourlyLabor", pin:adminPin, date:dateParam})
+    ]);
+    const data = { team: teamR.ok?teamR.team:[], labor: laborR.ok?laborR:{hours:[],total:0} };
+    teamCache[dateParam] = data;
+    if((laborDate || iso(new Date())) === dateParam) renderLabor(data, dateParam);
   }catch(e){}
 }
 
-function renderTodayCard(r, dateParam){
-  const box = document.getElementById("todaySummary");
+function renderLaborShell(dateParam, loading){
   const isToday = dateParam === iso(new Date());
-  const label = isToday ? "Today" : prettyDate(dateParam);
-  const loading = (r === null);
-
-  const stat = (num, lbl, cls) => {
-    const inner = loading ? '<span class="mini-spin"></span>' : num;
-    return `<div class="today-stat"><div class="num ${cls||''}">${inner}</div><div class="lbl">${lbl}</div></div>`;
-  };
-  const thirdStat = isToday
-    ? stat(loading?'':r.onShift, "on shift now")
-    : stat(loading?'':r.people, "worked");
-
-  box.innerHTML = `
-    <div class="today-head">
-      <button class="day-arrow" id="dayPrev">‹</button>
-      <div class="today-daterow">
-        <h3 style="margin:0">${label}</h3>
-        <input type="date" id="dayPicker" value="${dateParam}" max="${iso(new Date())}">
-      </div>
-      <button class="day-arrow" id="dayNext" ${isToday?'disabled':''}>›</button>
-    </div>
-    <div class="today-stats">
-      ${stat(loading?'':r.hours.toFixed(2), "hours done")}
-      ${stat(loading?'':'$'+r.pay.toFixed(2), "labor cost", "orange")}
-      ${thirdStat}
-    </div>`;
-  box.classList.add("show");
-  document.getElementById("dayPrev").addEventListener("click", ()=> shiftDay(-1));
-  document.getElementById("dayNext").addEventListener("click", ()=> shiftDay(1));
-  document.getElementById("dayPicker").addEventListener("change", e=>{
-    const todayIso = iso(new Date());
-    summaryDate = e.target.value === todayIso ? null : e.target.value;
-    loadTodaySummary();
-  });
+  document.getElementById("laborDayName").textContent = isToday ? "Today" : prettyDate(dateParam);
+  const dp = document.getElementById("laborDate");
+  dp.max = iso(new Date());
+  dp.value = dateParam;
+  document.getElementById("laborNext").disabled = isToday;
+  if(loading){
+    document.getElementById("laborCostBig").innerHTML = '<span class="mini-spin"></span>';
+    document.getElementById("laborChart").innerHTML = '';
+    document.getElementById("liveList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  }
 }
 
-function shiftDay(delta){
-  const cur = summaryDate || iso(new Date());
+function renderLabor(data, dateParam){
+  renderLaborShell(dateParam, false);
+  document.getElementById("laborCostBig").textContent = "$" + (data.labor.total||0).toFixed(2);
+  renderChart(data.labor.hours||[]);
+  renderTeam(data.team||[]);
+}
+
+/* hourly bar chart — show 4 AM to midnight (store hours window) */
+function renderChart(hours){
+  const box = document.getElementById("laborChart");
+  if(!hours.length){ box.innerHTML = '<div class="row-empty" style="margin:auto">No labor data.</div>'; return; }
+  const startH = 4; // 4 AM
+  const slice = hours.slice(startH);
+  const max = Math.max(...slice, 1);
+  let bars = "";
+  for(let h=startH; h<24; h++){
+    const val = hours[h]||0;
+    const pct = Math.round((val/max)*100);
+    bars += `<div class="lc-bar-wrap"><div class="lc-bar ${val<=0?'empty':''}" style="height:${val<=0?2:Math.max(pct,3)}%" title="${hourLabel(h)}: $${val.toFixed(2)}"></div></div>`;
+  }
+  let labels = "";
+  for(let h=startH; h<24; h++){
+    labels += `<span>${(h%6===0)?hourLabelShort(h):''}</span>`;
+  }
+  box.innerHTML = bars;
+  // labels row beneath
+  let lab = document.getElementById("laborChartLabels");
+  if(!lab){ lab = document.createElement("div"); lab.id="laborChartLabels"; lab.className="lc-hourlabels"; box.after(lab); }
+  lab.innerHTML = labels;
+}
+function hourLabel(h){ const ap=h>=12?"PM":"AM"; let hh=h%12||12; return hh+" "+ap; }
+function hourLabelShort(h){ const ap=h>=12?"P":"A"; let hh=h%12||12; return hh+ap; }
+
+/* team list */
+function renderTeam(team){
+  const box = document.getElementById("liveList");
+  let list = team.slice();
+  if(teamFilter!=="ALL") list = list.filter(p=>p.status===teamFilter);
+  if(teamSearchText) list = list.filter(p=>p.name.toLowerCase().includes(teamSearchText.toLowerCase()));
+
+  if(!list.length){ box.innerHTML = '<div class="row-empty">No results found.</div>'; return; }
+  box.innerHTML = "";
+  list.forEach(p=>{
+    const onBreak = p.state==="ON_BREAK";
+    const div = document.createElement("div");
+    div.className = "live-item";
+    const pic = p.photo ? `<img class="live-thumb" src="${p.photo}" data-full="${p.photo}">` : `<div class="live-thumb live-noimg">—</div>`;
+    let statusBadge;
+    if(p.status==="IN") statusBadge = `<span class="badge ${onBreak?'badge-break':'badge-working'}">${onBreak?'On break':'In'}</span>`;
+    else if(p.status==="AUTO_OUT") statusBadge = `<span class="badge badge-auto">Auto out</span>`;
+    else statusBadge = `<span class="badge badge-out">Out</span>`;
+    const timeline = p.status==="IN" ? `Since ${esc(p.since)}` : `${esc(p.since)} – ${esc(p.until||'—')}`;
+    div.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      ${pic}
+      <div><div class="live-name">${esc(p.name)} ${titlePill(p.title)}</div>
+      <div class="live-since">${timeline}</div></div></div>
+      ${statusBadge}`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll(".live-thumb[data-full]").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
+}
+
+function titlePill(title){
+  if(!title) return "";
+  const map = {"deli":"t-deli","cashier":"t-cashier","stocker":"t-stocker","meat dep.":"t-meat","meat dep":"t-meat","manager":"t-manager","owner":"t-owner"};
+  const cls = map[title.toLowerCase()] || "t-none";
+  return `<span class="title-pill ${cls}">${esc(title)}</span>`;
+}
+
+/* day nav */
+function laborShiftDay(delta){
+  const cur = laborDate || iso(new Date());
   const parts = cur.split("-");
   const d = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
   d.setDate(d.getDate()+delta);
   const todayIso = iso(new Date());
   const next = iso(d);
-  if(next > todayIso) return; // never go past today
-  summaryDate = next === todayIso ? null : next;
-  loadTodaySummary();
+  if(next > todayIso) return;
+  laborDate = next === todayIso ? null : next;
+  loadLive();
 }
+document.getElementById("laborPrev").addEventListener("click", ()=> laborShiftDay(-1));
+document.getElementById("laborNext").addEventListener("click", ()=> laborShiftDay(1));
+document.getElementById("laborDate").addEventListener("change", e=>{
+  const todayIso = iso(new Date());
+  laborDate = e.target.value === todayIso ? null : e.target.value;
+  loadLive();
+});
+
+/* team filter tabs + search */
+document.querySelectorAll(".team-tab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    document.querySelectorAll(".team-tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    teamFilter = t.dataset.status;
+    const cur = laborDate || iso(new Date());
+    if(teamCache[cur]) renderTeam(teamCache[cur].team);
+  });
+});
+document.getElementById("teamSearch").addEventListener("input", e=>{
+  teamSearchText = e.target.value;
+  const cur = laborDate || iso(new Date());
+  if(teamCache[cur]) renderTeam(teamCache[cur].team);
+});
+
 function prettyDate(isoStr){
   const parts = isoStr.split("-");
   const d = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
@@ -463,25 +590,11 @@ async function populateEmpFilter(){
       empNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
   }catch(e){}
 }
-function renderLive(list){
-  const box = document.getElementById("liveList");
-  if(!list || !list.length){ box.innerHTML = '<div class="row-empty">Nobody is clocked in right now.</div>'; return; }
-  box.innerHTML = "";
-  list.forEach(p=>{
-    const onBreak = p.state==="ON_BREAK";
-    const div = document.createElement("div");
-    div.className = "live-item";
-    const pic = p.photo ? `<img class="live-thumb" src="${p.photo}" data-full="${p.photo}">` : `<div class="live-thumb live-noimg">—</div>`;
-    div.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
-      ${pic}
-      <div><div class="live-name">${esc(p.name)}</div>
-      <div class="live-since">Since ${esc(p.since)}</div></div></div>
-      <span class="badge ${onBreak?'badge-break':'badge-working'}">${onBreak?'On break':'Working'}</span>`;
-    box.appendChild(div);
-  });
-  box.querySelectorAll(".live-thumb[data-full]").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
-}
-document.getElementById("liveRefresh").addEventListener("click", loadLive);
+document.getElementById("liveRefresh").addEventListener("click", ()=>{
+  const todayIso = iso(new Date());
+  delete teamCache[laborDate || todayIso];
+  loadLive(true);
+});
 
 /* ---- timesheets ---- */
 function setDefaultDates(){
@@ -837,6 +950,7 @@ function renderStaff(list){
     div.className = "emp-item";
     div.innerHTML = `<div>
         <span class="emp-name">${esc(e.name)}</span>
+        ${e.title?titlePill(e.title):''}
         ${e.admin?'<span class="tag tag-admin">Admin</span>':''}
         ${!e.active?'<span class="tag tag-off">Inactive</span>':''}
         <div class="emp-meta">PIN ${esc(e.pin)} · $${Number(e.rate).toFixed(2)}/hr${e.phone?' · '+esc(fmtPhone(e.phone)):''}</div>
@@ -848,14 +962,20 @@ function renderStaff(list){
 }
 document.getElementById("addStaffBtn").addEventListener("click", ()=> openEmp(null));
 
+const TITLES = ["Deli","Cashier","Stocker","Meat Dep.","Manager","Owner"];
 function openEmp(e){
   const isNew = !e;
+  const curTitle = isNew ? "" : (e.title||"");
+  const titleOpts = `<option value="">— No title —</option>` +
+    TITLES.map(t=>`<option value="${t}" ${t===curTitle?'selected':''}>${t}</option>`).join("");
   const m = document.getElementById("modalBox");
   m.innerHTML = `
     <h3>${isNew?"Add employee":"Edit "+esc(e.name)}</h3>
     <div class="field"><label>Name</label><input type="text" id="eName" value="${isNew?'':esc(e.name)}"></div>
-    <div class="field"><label>PIN (4 digits)</label><input type="number" id="ePin" value="${isNew?'':esc(e.pin)}"></div>
     <div class="field"><label>Phone</label><input type="tel" id="ePhone" value="${isNew?'':esc(fmtPhone(e.phone||''))}" placeholder="(334) 555-1234"></div>
+    <div class="field"><label>Job title</label>
+      <select id="eTitle" style="width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#fff;min-height:50px">${titleOpts}</select></div>
+    <div class="field"><label>PIN (4 digits)</label><input type="number" id="ePin" value="${isNew?'':esc(e.pin)}"></div>
     <div class="field"><label>Hourly rate</label><input type="number" id="eRate" value="${isNew?'0':e.rate}" step="0.25"></div>
     <div class="switch-row"><label>Active</label><input type="checkbox" id="eActive" ${isNew||e.active?'checked':''} style="width:22px;height:22px"></div>
     <div class="switch-row"><label>Admin access</label><input type="checkbox" id="eAdmin" ${(!isNew&&e.admin)?'checked':''} style="width:22px;height:22px"></div>
@@ -869,9 +989,10 @@ function openEmp(e){
   if(phoneInput){ phoneInput.addEventListener("input", ()=>{ phoneInput.value = fmtPhone(phoneInput.value); }); }
   document.getElementById("saveEmp").addEventListener("click", async ()=>{
     const name = val("eName"), newPin = val("ePin"), rate = val("eRate"), phone = fmtPhone(val("ePhone"));
+    const title = document.getElementById("eTitle").value;
     if(!name || newPin.length!==4){ toast("Name and a 4-digit PIN required","err"); return; }
     const btn = document.getElementById("saveEmp"); btn.innerHTML='<span class="spinner"></span>Saving…'; btn.disabled=true;
-    const payload = {pin:adminPin, name, newPin, rate, phone,
+    const payload = {pin:adminPin, name, newPin, rate, phone, title,
       active:document.getElementById("eActive").checked, admin:document.getElementById("eAdmin").checked};
     payload.action = isNew ? "addEmployee" : "updateEmployee";
     if(!isNew) payload.row = e.row;
