@@ -27,8 +27,8 @@
   .pin-dot{width:15px; height:15px; border-radius:50%; border:2px solid var(--line)}
   .pin-dot.filled{background:var(--orange); border-color:var(--orange)}
   .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
-  .key{height:60px; border:none; border-radius:14px; background:#f3efe9; color:var(--ink); font-size:24px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none}
-  .key:active{background:#eae4db; transform:scale(.96)}
+  .key{height:60px; border:none; border-radius:14px; background:#f3efe9; color:var(--ink); font-size:24px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none; touch-action:manipulation; user-select:none; -webkit-user-select:none}
+  .key:active{background:#eae4db}
   .key.ghost{background:transparent}
   .key.action{background:var(--black); color:#fff; font-size:17px}
 
@@ -155,6 +155,8 @@
     font-size:22px; font-weight:800; color:var(--ink); cursor:pointer; line-height:1; -webkit-appearance:none; appearance:none }
   .day-arrow:active{ background:#f0ece6 }
   .day-arrow:disabled{ opacity:.3; cursor:default }
+  .mini-spin{ display:inline-block; width:18px; height:18px; border:3px solid rgba(0,0,0,.12);
+    border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px }
   .today-stats{ display:flex; gap:18px; flex-wrap:wrap }
   .today-stat .num{ font-size:24px; font-weight:800 }
   .today-stat .num.orange{ color:var(--orange) }
@@ -263,16 +265,10 @@
 </div>
 
 <script>
-/* ---- block pinch + double-tap zoom (iOS Safari) ---- */
+/* ---- block pinch-zoom (double-tap handled by CSS touch-action) ---- */
 document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
 document.addEventListener('gesturechange', function(e){ e.preventDefault(); });
 document.addEventListener('gestureend', function(e){ e.preventDefault(); });
-let lastTouchM = 0;
-document.addEventListener('touchend', function(e){
-  const now = Date.now();
-  if (now - lastTouchM <= 300) { e.preventDefault(); }
-  lastTouchM = now;
-}, { passive: false });
 document.addEventListener('touchmove', function(e){
   if (e.touches.length > 1) { e.preventDefault(); }
 }, { passive: false });
@@ -341,44 +337,75 @@ async function loadLive(){
   document.getElementById("liveList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
   const r = await api({action:"getLiveStatus", pin:adminPin});
   if(r.ok) renderLive(r.onShift);
-  loadTodaySummary();
+  // refresh today's numbers (force, since they change live); keeps current viewed day
+  const todayIso = iso(new Date());
+  delete summaryCache[todayIso];
+  loadTodaySummary(true);
 }
 
 let summaryDate = null; // yyyy-mm-dd; null = today
-async function loadTodaySummary(){
+let summaryCache = {};  // date -> result, instant for already-seen days
+
+async function loadTodaySummary(force){
+  const dateParam = summaryDate || iso(new Date());
+  const isToday = dateParam === iso(new Date());
+
+  // today is always re-fetched (live), past days use cache if present
+  if(!force && !isToday && summaryCache[dateParam]){
+    renderTodayCard(summaryCache[dateParam], dateParam);
+    return;
+  }
+
+  // instant feedback: render the date header now, spinner on the numbers
+  renderTodayCard(null, dateParam);
+
   try{
-    const dateParam = summaryDate || iso(new Date());
     const r = await api({action:"getTodaySummary", pin:adminPin, date:dateParam});
     if(!r.ok) return;
-    const box = document.getElementById("todaySummary");
-    const isToday = dateParam === iso(new Date());
-    const label = isToday ? "Today" : prettyDate(dateParam);
-    const atToday = isToday; // disable the "next" arrow at today (no future days)
-    const thirdStat = isToday
-      ? `<div class="today-stat"><div class="num">${r.onShift}</div><div class="lbl">on shift now</div></div>`
-      : `<div class="today-stat"><div class="num">${r.people}</div><div class="lbl">worked</div></div>`;
-    box.innerHTML = `
-      <div class="today-head">
-        <button class="day-arrow" id="dayPrev">‹</button>
-        <div class="today-daterow">
-          <h3 style="margin:0">${label}</h3>
-          <input type="date" id="dayPicker" value="${dateParam}" max="${iso(new Date())}">
-        </div>
-        <button class="day-arrow" id="dayNext" ${atToday?'disabled':''}>›</button>
-      </div>
-      <div class="today-stats">
-        <div class="today-stat"><div class="num">${r.hours.toFixed(2)}</div><div class="lbl">hours done</div></div>
-        <div class="today-stat"><div class="num orange">$${r.pay.toFixed(2)}</div><div class="lbl">labor cost</div></div>
-        ${thirdStat}
-      </div>`;
-    box.classList.add("show");
-    document.getElementById("dayPrev").addEventListener("click", ()=>{ shiftDay(-1); });
-    document.getElementById("dayNext").addEventListener("click", ()=>{ shiftDay(1); });
-    document.getElementById("dayPicker").addEventListener("change", e=>{
-      summaryDate = e.target.value; loadTodaySummary();
-    });
+    summaryCache[dateParam] = r;
+    // only render if the user is still on this date (avoids flicker from fast clicks)
+    if((summaryDate || iso(new Date())) === dateParam) renderTodayCard(r, dateParam);
   }catch(e){}
 }
+
+function renderTodayCard(r, dateParam){
+  const box = document.getElementById("todaySummary");
+  const isToday = dateParam === iso(new Date());
+  const label = isToday ? "Today" : prettyDate(dateParam);
+  const loading = (r === null);
+
+  const stat = (num, lbl, cls) => {
+    const inner = loading ? '<span class="mini-spin"></span>' : num;
+    return `<div class="today-stat"><div class="num ${cls||''}">${inner}</div><div class="lbl">${lbl}</div></div>`;
+  };
+  const thirdStat = isToday
+    ? stat(loading?'':r.onShift, "on shift now")
+    : stat(loading?'':r.people, "worked");
+
+  box.innerHTML = `
+    <div class="today-head">
+      <button class="day-arrow" id="dayPrev">‹</button>
+      <div class="today-daterow">
+        <h3 style="margin:0">${label}</h3>
+        <input type="date" id="dayPicker" value="${dateParam}" max="${iso(new Date())}">
+      </div>
+      <button class="day-arrow" id="dayNext" ${isToday?'disabled':''}>›</button>
+    </div>
+    <div class="today-stats">
+      ${stat(loading?'':r.hours.toFixed(2), "hours done")}
+      ${stat(loading?'':'$'+r.pay.toFixed(2), "labor cost", "orange")}
+      ${thirdStat}
+    </div>`;
+  box.classList.add("show");
+  document.getElementById("dayPrev").addEventListener("click", ()=> shiftDay(-1));
+  document.getElementById("dayNext").addEventListener("click", ()=> shiftDay(1));
+  document.getElementById("dayPicker").addEventListener("change", e=>{
+    const todayIso = iso(new Date());
+    summaryDate = e.target.value === todayIso ? null : e.target.value;
+    loadTodaySummary();
+  });
+}
+
 function shiftDay(delta){
   const cur = summaryDate || iso(new Date());
   const parts = cur.split("-");

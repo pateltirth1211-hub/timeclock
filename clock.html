@@ -54,10 +54,10 @@
   .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
   .key{
     height:68px; border:none; border-radius:16px; background:#f3efe9; color:var(--ink);
-    font-size:26px; font-weight:700; cursor:pointer; transition:.1s; font-variant-numeric:tabular-nums;
-    -webkit-appearance:none; appearance:none;
+    font-size:26px; font-weight:700; cursor:pointer; transition:background .1s; font-variant-numeric:tabular-nums;
+    -webkit-appearance:none; appearance:none; touch-action:manipulation; user-select:none; -webkit-user-select:none;
   }
-  .key:active{transform:scale(.96); background:#eae4db}
+  .key:active{background:#eae4db}
   .key.ghost{background:transparent}
   .key.action{background:var(--black); color:#fff; font-size:18px; font-weight:700}
   .key.action:active{background:#000}
@@ -183,16 +183,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* ---- block zoom (pinch + double-tap) on iOS Safari ---- */
+/* ---- block pinch-zoom on iOS Safari (double-tap handled by CSS touch-action) ---- */
 document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
 document.addEventListener('gesturechange', function(e){ e.preventDefault(); });
 document.addEventListener('gestureend', function(e){ e.preventDefault(); });
-let lastTouch = 0;
-document.addEventListener('touchend', function(e){
-  const now = Date.now();
-  if (now - lastTouch <= 300) { e.preventDefault(); }
-  lastTouch = now;
-}, { passive: false });
 document.addEventListener('touchmove', function(e){
   if (e.touches.length > 1) { e.preventDefault(); }
 }, { passive: false });
