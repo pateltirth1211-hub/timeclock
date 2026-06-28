@@ -200,12 +200,19 @@
   .labor-cost-sub{ font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:4px }
 
   /* hourly bar chart */
-  .labor-chart{ display:flex; align-items:flex-end; gap:3px; height:160px; padding:10px 0 0; margin-bottom:6px;
-    border-bottom:2px solid var(--line); overflow-x:auto }
-  .lc-bar-wrap{ flex:1; min-width:13px; display:flex; flex-direction:column; align-items:center; height:100% ; justify-content:flex-end }
-  .lc-bar{ width:70%; background:var(--orange); border-radius:4px 4px 0 0; min-height:2px; transition:height .2s }
+  .labor-detail{ min-height:22px; text-align:center; font-size:14px; font-weight:700; color:var(--ink); margin-bottom:8px }
+  .labor-detail .muted{ color:var(--muted); font-weight:600 }
+  .labor-chart-wrap{ display:flex; align-items:stretch; gap:6px; margin-bottom:6px }
+  .labor-axis{ display:flex; flex-direction:column; justify-content:space-between; width:34px; flex-shrink:0;
+    height:160px; padding:6px 0 0; font-size:10px; color:var(--muted); text-align:right }
+  .labor-axis span{ line-height:1; transform:translateY(-4px) }
+  .labor-chart{ display:flex; align-items:flex-end; gap:3px; height:160px; padding:10px 0 0; flex:1;
+    border-bottom:2px solid var(--line); border-left:1px solid var(--line); overflow-x:auto }
+  .lc-bar-wrap{ flex:1; min-width:13px; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; cursor:pointer }
+  .lc-bar{ width:70%; background:var(--orange); border-radius:4px 4px 0 0; min-height:2px; transition:height .2s, opacity .15s }
   .lc-bar.empty{ background:#ececec }
-  .lc-hourlabels{ display:flex; gap:3px; margin-bottom:18px; font-size:10px; color:var(--muted) }
+  .lc-bar-wrap.sel .lc-bar{ background:var(--black) }
+  .lc-hourlabels{ display:flex; gap:3px; margin-bottom:18px; font-size:10px; color:var(--muted); padding-left:40px }
   .lc-hourlabels span{ flex:1; min-width:13px; text-align:center }
 
   /* team filters */
@@ -282,7 +289,11 @@
       </div>
 
       <!-- hourly bar chart -->
-      <div id="laborChart" class="labor-chart"></div>
+      <div id="laborDetail" class="labor-detail"></div>
+      <div class="labor-chart-wrap">
+        <div id="laborAxis" class="labor-axis"></div>
+        <div id="laborChart" class="labor-chart"></div>
+      </div>
 
       <!-- team list with filters -->
       <div class="team-filters">
@@ -468,32 +479,54 @@ function renderLaborShell(dateParam, loading){
 function renderLabor(data, dateParam){
   renderLaborShell(dateParam, false);
   document.getElementById("laborCostBig").textContent = "$" + (data.labor.total||0).toFixed(2);
-  renderChart(data.labor.hours||[]);
+  renderChart(data.labor.hours||[], data.labor.names||[]);
   renderTeam(data.team||[]);
 }
 
-/* hourly bar chart — show 4 AM to midnight (store hours window) */
-function renderChart(hours){
+/* hourly bar chart — 4 AM to midnight, $10-increment axis, tappable bars */
+function renderChart(hours, names){
   const box = document.getElementById("laborChart");
-  if(!hours.length){ box.innerHTML = '<div class="row-empty" style="margin:auto">No labor data.</div>'; return; }
+  const axis = document.getElementById("laborAxis");
+  const detail = document.getElementById("laborDetail");
+  detail.innerHTML = '<span class="muted">Tap a bar for details</span>';
+  if(!hours.length){ box.innerHTML = '<div class="row-empty" style="margin:auto">No labor data.</div>'; axis.innerHTML=""; return; }
+
   const startH = 4; // 4 AM
   const slice = hours.slice(startH);
-  const max = Math.max(...slice, 1);
+  const peak = Math.max(...slice, 0);
+  // round axis top up to next $10 (minimum $10)
+  const top = Math.max(10, Math.ceil(peak/10)*10);
+
+  // axis labels from top down to 0 in $10 steps
+  let axisHtml = "";
+  for(let v=top; v>=0; v-=10){ axisHtml += `<span>$${v}</span>`; }
+  axis.innerHTML = axisHtml;
+
   let bars = "";
   for(let h=startH; h<24; h++){
     const val = hours[h]||0;
-    const pct = Math.round((val/max)*100);
-    bars += `<div class="lc-bar-wrap"><div class="lc-bar ${val<=0?'empty':''}" style="height:${val<=0?2:Math.max(pct,3)}%" title="${hourLabel(h)}: $${val.toFixed(2)}"></div></div>`;
-  }
-  let labels = "";
-  for(let h=startH; h<24; h++){
-    labels += `<span>${(h%6===0)?hourLabelShort(h):''}</span>`;
+    const pct = top>0 ? Math.round((val/top)*100) : 0;
+    bars += `<div class="lc-bar-wrap" data-h="${h}"><div class="lc-bar ${val<=0?'empty':''}" style="height:${val<=0?2:Math.max(pct,3)}%"></div></div>`;
   }
   box.innerHTML = bars;
-  // labels row beneath
+
+  let labels = "";
+  for(let h=startH; h<24; h++){ labels += `<span>${(h%6===0)?hourLabelShort(h):''}</span>`; }
   let lab = document.getElementById("laborChartLabels");
-  if(!lab){ lab = document.createElement("div"); lab.id="laborChartLabels"; lab.className="lc-hourlabels"; box.after(lab); }
+  if(!lab){ lab = document.createElement("div"); lab.id="laborChartLabels"; lab.className="lc-hourlabels"; document.querySelector(".labor-chart-wrap").after(lab); }
   lab.innerHTML = labels;
+
+  // tap handlers
+  box.querySelectorAll(".lc-bar-wrap").forEach(w=>{
+    w.addEventListener("click", ()=>{
+      const h = Number(w.dataset.h);
+      box.querySelectorAll(".lc-bar-wrap").forEach(x=>x.classList.remove("sel"));
+      w.classList.add("sel");
+      const val = hours[h]||0;
+      const who = (names[h]&&names[h].length) ? names[h].join(", ") : "Nobody";
+      detail.innerHTML = `${hourLabel(h)} · <span style="color:var(--orange)">$${val.toFixed(2)}</span> · <span class="muted">${esc(who)}</span>`;
+    });
+  });
 }
 function hourLabel(h){ const ap=h>=12?"PM":"AM"; let hh=h%12||12; return hh+" "+ap; }
 function hourLabelShort(h){ const ap=h>=12?"P":"A"; let hh=h%12||12; return hh+ap; }
