@@ -70,6 +70,12 @@
   .btn-dark{background:var(--black); color:#fff}
   .btn-sm{padding:8px 12px; font-size:13px; border-radius:10px}
   .btn-row{display:flex; gap:10px; flex-wrap:wrap}
+  .presets{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
+  .preset{ border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px;
+    padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none;
+    touch-action:manipulation }
+  .preset:active{ background:#f0ece6 }
+  .preset.active{ background:var(--orange); color:#fff; border-color:var(--orange) }
   .date-row{display:flex; gap:10px}
   .date-row .field{flex:1; min-width:0}
   @media (max-width:480px){
@@ -168,6 +174,12 @@
     padding:2px 8px; border-radius:999px; letter-spacing:.3px; margin-left:6px; vertical-align:1px }
   .ot-line{ font-size:13px; color:var(--orange); font-weight:700; margin-top:2px }
 
+  /* weekly grouping */
+  .week-head{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--muted);
+    margin:12px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line) }
+  .week-head.ot{ color:var(--orange) }
+  .week-total{ font-size:14px; margin-bottom:2px }
+
   /* history view */
   .log-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px }
   .log-top{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:4px }
@@ -218,6 +230,12 @@
     <!-- TIMESHEETS -->
     <div id="sheetsTab" class="card hidden">
       <h2>Timesheets</h2>
+      <div class="presets">
+        <button class="preset" data-preset="thisweek">This week</button>
+        <button class="preset" data-preset="lastweek">Last week</button>
+        <button class="preset" data-preset="2weeks">Last 2 weeks</button>
+        <button class="preset" data-preset="thismonth">This month</button>
+      </div>
       <div class="date-row">
         <div class="field"><label>From</label><input type="date" id="startDate"></div>
         <div class="field"><label>To</label><input type="date" id="endDate"></div>
@@ -467,6 +485,44 @@ function setDefaultDates(){
 function iso(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function pad(n){ return n<10?"0"+n:n; }
 
+/* Monday of the week containing d */
+function mondayOf(d){
+  const x = new Date(d);
+  const dow = x.getDay();              // 0=Sun..6=Sat
+  const diff = (dow===0) ? 6 : dow-1;  // days since Monday
+  x.setDate(x.getDate()-diff);
+  x.setHours(0,0,0,0);
+  return x;
+}
+
+/* ---- pay period presets ---- */
+document.querySelectorAll(".preset").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    document.querySelectorAll(".preset").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    applyPreset(b.dataset.preset);
+  });
+});
+function applyPreset(kind){
+  const today = new Date();
+  let start, end;
+  if(kind==="thisweek"){
+    start = mondayOf(today); end = new Date(today);
+  } else if(kind==="lastweek"){
+    const thisMon = mondayOf(today);
+    end = new Date(thisMon); end.setDate(end.getDate()-1);      // last Sunday
+    start = new Date(end); start = mondayOf(start);             // that week's Monday
+  } else if(kind==="2weeks"){
+    start = mondayOf(today); start.setDate(start.getDate()-7);  // start of last week
+    end = new Date(today);
+  } else if(kind==="thismonth"){
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    end = new Date(today);
+  }
+  document.getElementById("startDate").value = iso(start);
+  document.getElementById("endDate").value = iso(end);
+  loadSheets();
+}
 document.getElementById("loadSheets").addEventListener("click", loadSheets);
 document.getElementById("empFilter").addEventListener("change", ()=>{ if(lastRows.length) renderSheets(lastRows); });
 async function loadSheets(){
@@ -485,62 +541,74 @@ function renderSheets(allRows){
   const rows = filter ? allRows.filter(r=>r.name===filter) : allRows;
   if(!rows.length){ box.innerHTML = '<div class="row-empty">No shifts in this range.</div>'; return; }
 
+  // does the data span more than one week? -> weekly grouping
+  const distinctWeeks = {};
+  rows.forEach(r=>{ distinctWeeks[r.week]=true; });
+  const multiWeek = Object.keys(distinctWeeks).length > 1;
+
   // group by employee
   const byName = {};
   rows.forEach(r=>{ (byName[r.name]=byName[r.name]||[]).push(r); });
 
   let html = "";
   let grand = 0, grandPay = 0, grandOtHrs = 0, grandOtPrem = 0;
+
   Object.keys(byName).sort().forEach(name=>{
     const list = byName[name];
     const rate = rateForNameLocal(name);
 
-    // weekly hours for OT detection
+    // weekly hours + OT for this person
     const weekHrs = {};
     list.forEach(r=>{
       const h = (r.hours===""||r.hours==null)?0:Number(r.hours);
       weekHrs[r.week] = (weekHrs[r.week]||0) + h;
     });
-    // OT hours per week = hours over 40
     const weekOt = {};
     Object.keys(weekHrs).forEach(w=>{ weekOt[w] = Math.max(0, weekHrs[w]-40); });
 
-    let sub = 0, subPay = 0, subOtHrs = 0, subOtPrem = 0;
     html += `<div class="name-sub" style="margin:16px 0 8px;font-size:16px">${esc(name)}</div>`;
-    list.forEach(r=>{
-      const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
-      const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
-      sub += hrs; subPay += pay;
-      const otWeek = weekOt[r.week] > 0;
-      const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
-      const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
-      const pic = r.photo ? `<img class="sc-photo" src="${r.photo}" data-full="${r.photo}">` : `<div class="sc-noimg">—</div>`;
-      html += `<div class="shift-card${otWeek?' ot-week':''}">
-        ${pic}
-        <div class="sc-body">
-          <div class="sc-date">${esc(r.date)}${otWeek?'<span class="ot-badge">OT week</span>':''}</div>
-          <div class="sc-grid">
-            <div><span class="lbl">In</span><span class="val">${esc(cleanTime(r.clockIn)||"—")}</span></div>
-            <div><span class="lbl">Out</span><span class="val">${esc(cleanTime(r.clockOut)||"—")}</span></div>
-            <div><span class="lbl">Break</span><span class="val">${esc(brk)}</span></div>
-            <div><span class="lbl">Hours</span><span class="val">${hrs?hrs.toFixed(2):"—"}</span></div>
-            <div><span class="lbl">Pay</span><span class="val">${pay?"$"+pay.toFixed(2):"—"}</span></div>
-          </div>
-          ${r.flag?`<div class="sc-flag">${esc(r.flag)}</div>`:""}
-          <div class="sc-foot"><button class="btn btn-dark btn-sm" data-edit="${r.row}">Edit</button></div>
-        </div>
-      </div>`;
-    });
 
-    // OT premium = 0.5 * rate * OT hours (straight time already counted in subPay)
-    Object.keys(weekOt).forEach(w=>{
-      if(weekOt[w]>0){ subOtHrs += weekOt[w]; subOtPrem += 0.5*rate*weekOt[w]; }
-    });
+    let sub = 0, subPay = 0, subOtHrs = 0, subOtPrem = 0;
+
+    if(multiWeek){
+      // group this person's shifts by week
+      const byWeek = {};
+      list.forEach(r=>{ (byWeek[r.week]=byWeek[r.week]||[]).push(r); });
+      Object.keys(byWeek).sort().forEach(wk=>{
+        const wlist = byWeek[wk];
+        const wHrs = weekHrs[wk];
+        const wOt = weekOt[wk];
+        const wOtPrem = Math.round(0.5*rate*wOt*100)/100;
+        let wPay = 0;
+        html += `<div class="week-head${wOt>0?' ot':''}">Week of ${weekLabel(wk)}${wOt>0?'<span class="ot-badge">OT</span>':''}</div>`;
+        wlist.forEach(r=>{
+          const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
+          wPay += pay;
+          html += shiftCard(r, wOt>0);
+        });
+        sub += wHrs; subPay += wPay;
+        if(wOt>0){ subOtHrs += wOt; subOtPrem += wOtPrem; }
+        let wLine = `<div class="totals week-total"><span>${weekLabel(wk)} · ${wHrs.toFixed(2)} hrs</span><span>$${wPay.toFixed(2)}</span></div>`;
+        if(wOt>0){
+          wLine += `<div class="ot-line" style="margin-bottom:10px">${wOt.toFixed(2)} OT hrs · +$${wOtPrem.toFixed(2)} · <b>$${(wPay+wOtPrem).toFixed(2)} with OT</b></div>`;
+        }
+        html += wLine;
+      });
+    } else {
+      // single week: flat list
+      list.forEach(r=>{
+        const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
+        subPay += pay;
+        html += shiftCard(r, weekOt[r.week]>0);
+      });
+      sub = Object.values(weekHrs).reduce((a,b)=>a+b,0);
+      Object.keys(weekOt).forEach(w=>{ if(weekOt[w]>0){ subOtHrs += weekOt[w]; subOtPrem += 0.5*rate*weekOt[w]; } });
+    }
+
     subOtPrem = Math.round(subOtPrem*100)/100;
-
     grand += sub; grandPay += subPay; grandOtHrs += subOtHrs; grandOtPrem += subOtPrem;
 
-    let totalLine = `<div class="totals" style="margin-bottom:2px"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
+    let totalLine = `<div class="totals" style="margin-bottom:2px;border-top-width:2px"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
     if(subOtHrs>0){
       totalLine += `<div class="ot-line" style="margin-bottom:8px">${subOtHrs.toFixed(2)} OT hrs · +$${subOtPrem.toFixed(2)} premium · <b>$${(subPay+subOtPrem).toFixed(2)} with OT</b></div>`;
     }
@@ -556,6 +624,42 @@ function renderSheets(allRows){
 
   box.querySelectorAll(".sc-photo").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
   box.querySelectorAll("[data-edit]").forEach(b=> b.addEventListener("click", ()=> openEdit(b.dataset.edit)));
+}
+
+/* render a single shift card */
+function shiftCard(r, otWeek){
+  const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
+  const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
+  const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
+  const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
+  const pic = r.photo ? `<img class="sc-photo" src="${r.photo}" data-full="${r.photo}">` : `<div class="sc-noimg">—</div>`;
+  return `<div class="shift-card${otWeek?' ot-week':''}">
+    ${pic}
+    <div class="sc-body">
+      <div class="sc-date">${esc(r.date)}</div>
+      <div class="sc-grid">
+        <div><span class="lbl">In</span><span class="val">${esc(cleanTime(r.clockIn)||"—")}</span></div>
+        <div><span class="lbl">Out</span><span class="val">${esc(cleanTime(r.clockOut)||"—")}</span></div>
+        <div><span class="lbl">Break</span><span class="val">${esc(brk)}</span></div>
+        <div><span class="lbl">Hours</span><span class="val">${hrs?hrs.toFixed(2):"—"}</span></div>
+        <div><span class="lbl">Pay</span><span class="val">${pay?"$"+pay.toFixed(2):"—"}</span></div>
+      </div>
+      ${r.flag?`<div class="sc-flag">${esc(r.flag)}</div>`:""}
+      <div class="sc-foot"><button class="btn btn-dark btn-sm" data-edit="${r.row}">Edit</button></div>
+    </div>
+  </div>`;
+}
+
+/* "Jun 16–22" style label from a Monday yyyy-mm-dd week key */
+function weekLabel(wk){
+  const parts = wk.split("-");
+  const mon = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+  const sun = new Date(mon); sun.setDate(sun.getDate()+6);
+  const mons=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  if(mon.getMonth()===sun.getMonth()){
+    return `${mons[mon.getMonth()]} ${mon.getDate()}–${sun.getDate()}`;
+  }
+  return `${mons[mon.getMonth()]} ${mon.getDate()} – ${mons[sun.getMonth()]} ${sun.getDate()}`;
 }
 /* local rate lookup from cached staff (populated by populateEmpFilter / loadStaff) */
 function rateForNameLocal(name){ return rateCache[name]||0; }
