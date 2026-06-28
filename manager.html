@@ -175,10 +175,18 @@
   .ot-line{ font-size:13px; color:var(--orange); font-weight:700; margin-top:2px }
 
   /* weekly grouping */
-  .week-head{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--muted);
-    margin:12px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line) }
+  .emp-panel{ border:1px solid var(--line); border-radius:16px; overflow:hidden; margin-bottom:22px;
+    box-shadow:0 2px 10px rgba(0,0,0,.04) }
+  .emp-header{ background:var(--black); color:#fff; font-size:18px; font-weight:800; padding:13px 16px; letter-spacing:.2px }
+  .emp-body{ padding:14px 14px 6px }
+  .emp-total{ border-top:2px solid var(--ink); margin-top:6px; padding-top:10px; font-size:15px; font-weight:800 }
+  .week-head{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--muted);
+    margin:10px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--line) }
+  .emp-body > .week-head:first-child{ margin-top:0 }
   .week-head.ot{ color:var(--orange) }
-  .week-total{ font-size:14px; margin-bottom:2px }
+  .week-total{ font-size:14px; margin-bottom:2px; color:var(--muted) }
+  .grand-total{ display:flex; justify-content:space-between; align-items:center; background:var(--orange); color:#fff;
+    font-weight:800; font-size:17px; padding:14px 16px; border-radius:14px; margin-top:6px }
 
   /* history view */
   .log-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px }
@@ -566,7 +574,7 @@ function renderSheets(allRows){
     const weekOt = {};
     Object.keys(weekHrs).forEach(w=>{ weekOt[w] = Math.max(0, weekHrs[w]-40); });
 
-    html += `<div class="name-sub" style="margin:16px 0 8px;font-size:16px">${esc(name)}</div>`;
+    html += `<div class="emp-panel"><div class="emp-header">${esc(name)}</div><div class="emp-body">`;
 
     let sub = 0, subPay = 0, subOtHrs = 0, subOtPrem = 0;
 
@@ -608,14 +616,15 @@ function renderSheets(allRows){
     subOtPrem = Math.round(subOtPrem*100)/100;
     grand += sub; grandPay += subPay; grandOtHrs += subOtHrs; grandOtPrem += subOtPrem;
 
-    let totalLine = `<div class="totals" style="margin-bottom:2px;border-top-width:2px"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
+    let totalLine = `<div class="totals emp-total"><span>${esc(name)} total</span><span>${sub.toFixed(2)} hrs · $${subPay.toFixed(2)}</span></div>`;
     if(subOtHrs>0){
       totalLine += `<div class="ot-line" style="margin-bottom:8px">${subOtHrs.toFixed(2)} OT hrs · +$${subOtPrem.toFixed(2)} premium · <b>$${(subPay+subOtPrem).toFixed(2)} with OT</b></div>`;
     }
     html += totalLine;
+    html += `</div></div>`; // close emp-body, emp-panel
   });
 
-  let grandHtml = `<div class="totals" style="border-top-width:3px;color:var(--orange)"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
+  let grandHtml = `<div class="grand-total"><span>Total</span><span>${grand.toFixed(2)} hrs · $${grandPay.toFixed(2)}</span></div>`;
   if(grandOtPrem>0){
     grandHtml += `<div class="ot-line" style="text-align:right">incl. ${grandOtHrs.toFixed(2)} OT hrs · +$${grandOtPrem.toFixed(2)} · <b>$${(grandPay+grandOtPrem).toFixed(2)} total with OT</b></div>`;
   }
