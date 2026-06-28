@@ -234,6 +234,11 @@
   .t-manager{ background:#fff0d9; color:#c47a16 }
   .t-owner{ background:#1a1a1a; color:#fff }
   .t-none{ background:#eee; color:#999 }
+  .title-checks{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+  .title-check{ display:flex; align-items:center; gap:9px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:12px; cursor:pointer; font-weight:600; font-size:15px; -webkit-user-select:none; user-select:none }
+  .title-check input{ width:20px; height:20px; flex-shrink:0; accent-color:var(--orange) }
+  .title-check span{ line-height:1 }
 
   /* history view */
   .log-card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px }
@@ -563,8 +568,10 @@ function renderTeam(team){
 function titlePill(title){
   if(!title) return "";
   const map = {"deli":"t-deli","cashier":"t-cashier","stocker":"t-stocker","meat dep.":"t-meat","meat dep":"t-meat","manager":"t-manager","owner":"t-owner"};
-  const cls = map[title.toLowerCase()] || "t-none";
-  return `<span class="title-pill ${cls}">${esc(title)}</span>`;
+  return String(title).split(",").map(t=>t.trim()).filter(Boolean).map(t=>{
+    const cls = map[t.toLowerCase()] || "t-none";
+    return `<span class="title-pill ${cls}">${esc(t)}</span>`;
+  }).join(" ");
 }
 
 /* day nav */
@@ -998,16 +1005,17 @@ document.getElementById("addStaffBtn").addEventListener("click", ()=> openEmp(nu
 const TITLES = ["Deli","Cashier","Stocker","Meat Dep.","Manager","Owner"];
 function openEmp(e){
   const isNew = !e;
-  const curTitle = isNew ? "" : (e.title||"");
-  const titleOpts = `<option value="">— No title —</option>` +
-    TITLES.map(t=>`<option value="${t}" ${t===curTitle?'selected':''}>${t}</option>`).join("");
+  const curTitles = isNew ? [] : String(e.title||"").split(",").map(t=>t.trim()).filter(Boolean);
+  const titleChecks = TITLES.map(t=>{
+    const on = curTitles.some(c=>c.toLowerCase()===t.toLowerCase());
+    return `<label class="title-check"><input type="checkbox" class="eTitleChk" value="${t}" ${on?'checked':''}><span>${t}</span></label>`;
+  }).join("");
   const m = document.getElementById("modalBox");
   m.innerHTML = `
     <h3>${isNew?"Add employee":"Edit "+esc(e.name)}</h3>
     <div class="field"><label>Name</label><input type="text" id="eName" value="${isNew?'':esc(e.name)}"></div>
     <div class="field"><label>Phone</label><input type="tel" id="ePhone" value="${isNew?'':esc(fmtPhone(e.phone||''))}" placeholder="(334) 555-1234"></div>
-    <div class="field"><label>Job title</label>
-      <select id="eTitle" style="width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#fff;min-height:50px">${titleOpts}</select></div>
+    <div class="field"><label>Job titles</label><div class="title-checks">${titleChecks}</div></div>
     <div class="field"><label>PIN (4 digits)</label><input type="number" id="ePin" value="${isNew?'':esc(e.pin)}"></div>
     <div class="field"><label>Hourly rate</label><input type="number" id="eRate" value="${isNew?'0':e.rate}" step="0.25"></div>
     <div class="switch-row"><label>Active</label><input type="checkbox" id="eActive" ${isNew||e.active?'checked':''} style="width:22px;height:22px"></div>
@@ -1022,7 +1030,7 @@ function openEmp(e){
   if(phoneInput){ phoneInput.addEventListener("input", ()=>{ phoneInput.value = fmtPhone(phoneInput.value); }); }
   document.getElementById("saveEmp").addEventListener("click", async ()=>{
     const name = val("eName"), newPin = val("ePin"), rate = val("eRate"), phone = fmtPhone(val("ePhone"));
-    const title = document.getElementById("eTitle").value;
+    const title = Array.from(document.querySelectorAll(".eTitleChk:checked")).map(c=>c.value).join(", ");
     if(!name || newPin.length!==4){ toast("Name and a 4-digit PIN required","err"); return; }
     const btn = document.getElementById("saveEmp"); btn.innerHTML='<span class="spinner"></span>Saving…'; btn.disabled=true;
     const payload = {pin:adminPin, name, newPin, rate, phone, title,
