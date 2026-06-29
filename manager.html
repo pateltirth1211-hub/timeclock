@@ -918,7 +918,12 @@ function openEdit(row){
     const res = await api({action:"editPunch", pin:adminPin, row:r.row,
       clockIn:from24("eIn"), breakOut:from24("eBo"), breakIn:from24("eBi"), clockOut:from24("eOut"),
       note:val("eNote")});
-    if(res.ok){ toast(res.message,"ok"); closeModal(); loadSheets(); }
+    if(res.ok){
+      toast(res.message,"ok"); closeModal();
+      if(lastRows.length) loadSheets();
+      // if the Actions tab is open, refresh its problems + history
+      if(!document.getElementById("actionsTab").classList.contains("hidden")) loadActions();
+    }
     else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
   });
 }
