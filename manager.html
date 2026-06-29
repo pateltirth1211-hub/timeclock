@@ -668,18 +668,35 @@ function prettyDate(isoStr){
   return `${days[d.getDay()]}, ${mons[d.getMonth()]} ${d.getDate()}`;
 }
 
+/* ---- shared employee cache (preloaded on login, used by Staff / team filter / Add Entry) ---- */
+let empCache = [];          // full employee objects
 let empNames = [];
-async function populateEmpFilter(){
+let empCacheLoaded = false;
+
+async function loadEmployees(force){
+  if(empCacheLoaded && !force) return empCache;   // already have it
   try{
     const r = await api({action:"getEmployees", pin:adminPin});
-    if(!r.ok) return;
-    empNames = r.employees.map(e=>e.name);
-    r.employees.forEach(e=>{ rateCache[e.name] = e.rate; });
-    const sel = document.getElementById("empFilter");
-    sel.innerHTML = '<option value="">All employees</option>' +
-      empNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    if(r.ok){
+      empCache = r.employees;
+      empNames = empCache.map(e=>e.name);
+      empCache.forEach(e=>{ rateCache[e.name] = e.rate; });
+      empCacheLoaded = true;
+      fillEmpFilter();
+    }
   }catch(e){}
+  return empCache;
 }
+function fillEmpFilter(){
+  const sel = document.getElementById("empFilter");
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All employees</option>' +
+    empNames.map(n=>`<option value="${esc(n)}" ${n===cur?'selected':''}>${esc(n)}</option>`).join("");
+}
+/* kept for backwards compatibility — now just ensures cache is loaded */
+async function populateEmpFilter(){ return loadEmployees(); }
+
 document.getElementById("liveRefresh").addEventListener("click", ()=>{
   const todayIso = iso(new Date());
   delete teamCache[laborDate || todayIso];
@@ -1063,14 +1080,14 @@ document.getElementById("scanBtn").addEventListener("click", async ()=>{
 /* ---- Add manual entry ---- */
 document.getElementById("addEntryBtn").addEventListener("click", openAddEntry);
 async function openAddEntry(){
-  // fetch employees for the picker
-  showLoading("Loading…");
-  let emps = [];
-  try{
-    const r = await api({action:"getEmployees", pin:adminPin});
-    if(r.ok) emps = r.employees.filter(e=>e.active);
-  }catch(e){}
-  hideLoading();
+  // use cached employees (preloaded on login); fall back to a fetch only if empty
+  let emps = empCache.filter(e=>e.active);
+  if(!emps.length && !empCacheLoaded){
+    showLoading("Loading…");
+    await loadEmployees(true);
+    hideLoading();
+    emps = empCache.filter(e=>e.active);
+  }
   if(!emps.length){ toast("No active employees","err"); return; }
 
   const today = iso(new Date());
@@ -1120,10 +1137,15 @@ document.getElementById("overlay").addEventListener("click", e=>{ if(e.target.id
 
 /* ---- staff ---- */
 async function loadStaff(){
-  document.getElementById("staffList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
-  const r = await api({action:"getEmployees", pin:adminPin});
-  if(!r.ok){ document.getElementById("staffList").innerHTML = '<div class="row-empty">'+esc(r.error)+'</div>'; return; }
-  renderStaff(r.employees);
+  // render instantly from cache if we have it
+  if(empCacheLoaded && empCache.length){
+    renderStaff(empCache);
+  } else {
+    document.getElementById("staffList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  }
+  // refresh in background to catch any changes, then re-render
+  const fresh = await loadEmployees(true);
+  if(fresh && fresh.length) renderStaff(fresh);
 }
 function renderStaff(list){
   const box = document.getElementById("staffList");
@@ -1181,7 +1203,7 @@ function openEmp(e){
     payload.action = isNew ? "addEmployee" : "updateEmployee";
     if(!isNew) payload.row = e.row;
     const res = await api(payload);
-    if(res.ok){ toast(res.message,"ok"); closeModal(); loadStaff(); }
+    if(res.ok){ toast(res.message,"ok"); closeModal(); empCacheLoaded=false; loadStaff(); }
     else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
   });
 }
