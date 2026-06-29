@@ -234,6 +234,39 @@
   .t-manager{ background:#fff0d9; color:#c47a16 }
   .t-owner{ background:#1a1a1a; color:#fff }
   .t-none{ background:#eee; color:#999 }
+
+  /* actions tab */
+  .actions-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px }
+  .actions-sub{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
+    margin:6px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line) }
+  .prob-card{ border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; border-left:4px solid var(--orange) }
+  .prob-card.attention{ border-left-color:#c0392b }
+  .prob-top{ display:flex; justify-content:space-between; gap:8px; margin-bottom:4px }
+  .prob-who{ font-weight:800; font-size:15px }
+  .prob-type{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:3px 8px; border-radius:999px; white-space:nowrap; height:fit-content }
+  .prob-type.fix{ background:#e7f3e8; color:var(--green) }
+  .prob-type.att{ background:#fdeaea; color:#c0392b }
+  .prob-issue{ font-size:14px; margin:6px 0 2px }
+  .prob-fix{ font-size:13px; color:var(--muted); margin-bottom:12px }
+  .prob-fix b{ color:var(--ink) }
+  .prob-btns{ display:flex; gap:8px }
+  .btn-accept{ background:var(--green); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:800; font-size:14px; cursor:pointer; flex:1 }
+  .btn-deny{ background:#fff; color:var(--muted); border:1px solid var(--line); border-radius:10px; padding:10px 16px; font-weight:700; font-size:14px; cursor:pointer; flex:1 }
+  .btn-fixit{ background:var(--black); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:800; font-size:14px; cursor:pointer; flex:1 }
+  .actions-ok{ text-align:center; color:var(--muted); padding:20px 10px; font-size:14px }
+
+  /* expandable history rows */
+  .hist-row{ border-bottom:1px solid var(--line); padding:12px 2px; cursor:pointer }
+  .hist-row:last-child{ border-bottom:none }
+  .hist-line{ display:flex; justify-content:space-between; gap:10px; align-items:baseline }
+  .hist-main{ font-size:14px; font-weight:600 }
+  .hist-main b{ font-weight:800 }
+  .hist-when{ font-size:12px; color:var(--muted); white-space:nowrap; flex-shrink:0 }
+  .hist-detail{ margin-top:8px; padding:10px 12px; background:#faf7f3; border-radius:10px; font-size:13px; display:none }
+  .hist-row.open .hist-detail{ display:block }
+  .hist-detail .dl{ color:var(--muted); margin-right:4px }
+  .hist-note{ font-style:italic; color:var(--muted); margin-top:6px }
+  .hist-caret{ font-size:11px; color:var(--muted); margin-left:6px }
   .title-checks{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
   .title-check{ display:flex; align-items:center; gap:9px; padding:11px 12px; border:1px solid var(--line);
     border-radius:12px; cursor:pointer; font-weight:600; font-size:15px; -webkit-user-select:none; user-select:none }
@@ -275,6 +308,7 @@
       <button class="tab active" data-tab="live">On Shift</button>
       <button class="tab" data-tab="sheets">Timesheets</button>
       <button class="tab" data-tab="staff">Staff</button>
+      <button class="tab" data-tab="actions">Actions</button>
     </div>
 
     <!-- LIVE / ON SHIFT -->
@@ -338,7 +372,6 @@
         <button class="btn btn-primary" id="loadSheets">View</button>
         <button class="btn btn-dark" id="exportCsv">Export CSV</button>
         <button class="btn btn-dark" id="addEntryBtn">+ Add Entry</button>
-        <button class="btn btn-dark" id="historyBtn">History</button>
       </div>
       <div id="sheetsResult" style="margin-top:16px"></div>
     </div>
@@ -350,6 +383,21 @@
       <div class="btn-row" style="margin-top:16px">
         <button class="btn btn-primary" id="addStaffBtn">+ Add Employee</button>
       </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div id="actionsTab" class="card hidden">
+      <h2>Actions</h2>
+      <div class="actions-head">
+        <div class="muted" style="font-size:13px">Issues found in your timesheet data, and a log of every change made.</div>
+        <button class="btn btn-dark btn-sm" id="scanBtn">Scan now</button>
+      </div>
+
+      <div class="actions-sub">Needs review</div>
+      <div id="problemsList"><div class="center"><span class="spinner"></span></div></div>
+
+      <div class="actions-sub" style="margin-top:22px">Activity history</div>
+      <div id="historyList"><div class="center"><span class="spinner"></span></div></div>
     </div>
 
     <p class="center muted" style="font-size:12px">
@@ -433,8 +481,10 @@ document.querySelectorAll(".tab").forEach(t=>{
     document.getElementById("liveTab").classList.toggle("hidden", tab!=="live");
     document.getElementById("sheetsTab").classList.toggle("hidden", tab!=="sheets");
     document.getElementById("staffTab").classList.toggle("hidden", tab!=="staff");
+    document.getElementById("actionsTab").classList.toggle("hidden", tab!=="actions");
     if(tab==="live") loadLive();
     if(tab==="staff") loadStaff();
+    if(tab==="actions") loadActions();
   });
 });
 
@@ -897,25 +947,113 @@ function from24(id){
   return hh+":"+mm+" "+ap;
 }
 
-/* ---- Edit history ---- */
-document.getElementById("historyBtn").addEventListener("click", openHistory);
-async function openHistory(){
-  const box = document.getElementById("sheetsResult");
-  box.innerHTML = '<div class="center"><span class="spinner"></span></div>';
-  const r = await api({action:"getEditLog", pin:adminPin});
-  if(!r.ok){ box.innerHTML = '<div class="row-empty">'+esc(r.error||"Error")+'</div>'; return; }
-  if(!r.rows.length){ box.innerHTML = '<div class="row-empty">No edits logged yet.</div>'; return; }
-  let html = `<div class="name-sub" style="margin:8px 0 10px;font-size:16px">Edit history</div>`;
-  r.rows.forEach(e=>{
-    html += `<div class="log-card">
-      <div class="log-top"><span>${esc(e.admin||"—")} · ${esc(e.employee||"")}</span><span>${esc(e.when)}</span></div>
-      <div class="log-change">${esc(e.change||"")}</div>
-      <div class="muted" style="font-size:12px;margin-top:2px">Shift date: ${esc(e.date||"—")}</div>
-      ${e.note?`<div class="log-note">"${esc(e.note)}"</div>`:""}
-    </div>`;
-  });
-  box.innerHTML = html;
+/* ---- Actions tab: problems review + activity history ---- */
+async function loadActions(){
+  loadProblems();
+  loadHistory();
 }
+
+async function loadProblems(){
+  const box = document.getElementById("problemsList");
+  box.innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  try{
+    const r = await api({action:"getProblems", pin:adminPin});
+    if(!r.ok){ box.innerHTML = '<div class="row-empty">'+esc(r.error||"Error")+'</div>'; return; }
+    if(!r.problems.length){ box.innerHTML = '<div class="actions-ok">✓ No issues found. Everything looks clean.</div>'; return; }
+    box.innerHTML = "";
+    r.problems.forEach(p=>{
+      const autofix = p.type==="AUTOFIX";
+      const div = document.createElement("div");
+      div.className = "prob-card" + (autofix?"":" attention");
+      const btns = autofix
+        ? `<div class="prob-btns">
+             <button class="btn-accept" data-accept="${p.row}">Accept fix</button>
+             <button class="btn-deny" data-deny="${p.row}">Deny</button>
+           </div>`
+        : `<div class="prob-btns">
+             <button class="btn-fixit" data-fix="${p.timeRow}">Edit shift</button>
+             <button class="btn-deny" data-deny="${p.row}">Dismiss</button>
+           </div>`;
+      div.innerHTML = `
+        <div class="prob-top">
+          <span class="prob-who">${esc(p.employee||"—")} · ${esc(p.date||"")}</span>
+          <span class="prob-type ${autofix?'fix':'att'}">${autofix?'Auto-fixable':'Needs attention'}</span>
+        </div>
+        <div class="prob-issue">${esc(p.issue)}</div>
+        <div class="prob-fix">Suggested: <b>${esc(p.fix||"—")}</b></div>
+        ${btns}`;
+      box.appendChild(div);
+    });
+    box.querySelectorAll("[data-accept]").forEach(b=> b.addEventListener("click", ()=> resolveProblem(b.dataset.accept,"APPROVE",b)));
+    box.querySelectorAll("[data-deny]").forEach(b=> b.addEventListener("click", ()=> resolveProblem(b.dataset.deny,"DENY",b)));
+    box.querySelectorAll("[data-fix]").forEach(b=> b.addEventListener("click", ()=> openEditFromProblem(b.dataset.fix)));
+  }catch(e){ box.innerHTML = '<div class="row-empty">Connection error</div>'; }
+}
+
+async function resolveProblem(problemRow, decision, btnEl){
+  if(btnEl){ btnEl.innerHTML='<span class="spinner"></span>'; btnEl.disabled=true; }
+  try{
+    const r = await api({action:"resolveProblem", pin:adminPin, problemRow, decision});
+    if(r.ok){ toast(r.message,"ok"); loadProblems(); loadHistory(); }
+    else { toast(r.error||"Error","err"); if(btnEl){ btnEl.disabled=false; btnEl.textContent = decision==="DENY"?"Deny":"Accept fix"; } }
+  }catch(e){ toast("Connection error","err"); if(btnEl){ btnEl.disabled=false; } }
+}
+
+/* open the existing edit modal for a flagged shift; needs the row loaded */
+async function openEditFromProblem(timeRow){
+  // make sure we have the row data — pull a wide range to find it
+  showLoading("Loading…");
+  try{
+    const r = await api({action:"getTimesheets", pin:adminPin, start:"2000-01-01", end:"2999-12-31"});
+    hideLoading();
+    if(r.ok){ lastRows = r.rows; openEdit(timeRow); }
+  }catch(e){ hideLoading(); toast("Couldn't load that shift","err"); }
+}
+
+async function loadHistory(){
+  const box = document.getElementById("historyList");
+  box.innerHTML = '<div class="center"><span class="spinner"></span></div>';
+  try{
+    const r = await api({action:"getEditLog", pin:adminPin});
+    if(!r.ok){ box.innerHTML = '<div class="row-empty">'+esc(r.error||"Error")+'</div>'; return; }
+    if(!r.rows.length){ box.innerHTML = '<div class="actions-ok">No changes logged yet.</div>'; return; }
+    box.innerHTML = "";
+    r.rows.forEach(e=>{
+      const div = document.createElement("div");
+      div.className = "hist-row";
+      const shortChange = (e.change||"").length>46 ? (e.change.slice(0,46)+"…") : (e.change||"");
+      div.innerHTML = `
+        <div class="hist-line">
+          <div class="hist-main"><b>${esc(e.admin||"—")}</b> · ${esc(e.employee||"")} <span class="hist-caret">▾</span></div>
+          <div class="hist-when">${esc(shortWhen(e.when))}</div>
+        </div>
+        <div class="hist-detail">
+          <div><span class="dl">Change:</span>${esc(e.change||"—")}</div>
+          <div style="margin-top:4px"><span class="dl">Shift date:</span>${esc(e.date||"—")}</div>
+          <div style="margin-top:4px"><span class="dl">When:</span>${esc(e.when||"—")}</div>
+          ${e.note?`<div class="hist-note">"${esc(e.note)}"</div>`:""}
+        </div>`;
+      div.addEventListener("click", ()=> div.classList.toggle("open"));
+      box.appendChild(div);
+    });
+  }catch(e){ box.innerHTML = '<div class="row-empty">Connection error</div>'; }
+}
+/* shorten "6/28/2026 11:30 PM" -> "6/28 11:30 PM" for the compact row */
+function shortWhen(w){
+  if(!w) return "";
+  return String(w).replace(/^(\d+\/\d+)\/\d{4}\s+/, "$1 ");
+}
+
+document.getElementById("scanBtn").addEventListener("click", async ()=>{
+  const btn = document.getElementById("scanBtn");
+  btn.innerHTML='<span class="spinner"></span>Scanning…'; btn.disabled=true;
+  try{
+    const r = await api({action:"scanProblems", pin:adminPin});
+    toast(r.ok?r.message:"Scan failed", r.ok?"ok":"err");
+    loadProblems();
+  }catch(e){ toast("Connection error","err"); }
+  btn.innerHTML="Scan now"; btn.disabled=false;
+});
 
 /* ---- Add manual entry ---- */
 document.getElementById("addEntryBtn").addEventListener("click", openAddEntry);
