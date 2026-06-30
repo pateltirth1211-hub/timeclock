@@ -272,6 +272,7 @@
   .sc-early{ background:#fce8d6; color:#cb6a1e }
   .sc-noshow{ background:#fde2e0; color:#c0392b }
   .sc-unsched{ background:#dfeffc; color:#1d6fb8 }
+  .sc-upcoming{ background:#ece9f7; color:#5b4b9e }
   .sc-done{ background:#eef0f2; color:#5a6068 }
   html[data-theme="dark"] .sc-done{ background:#22252a; color:#aab1b8 }
 
@@ -282,6 +283,7 @@
   .sched-card.s-early{ border-left-color:#cb6a1e }
   .sched-card.s-noshow{ border-left-color:#c0392b }
   .sched-card.s-unsched{ border-left-color:#1d6fb8 }
+  .sched-card.s-upcoming{ border-left-color:#5b4b9e }
   .sched-card.s-ontime{ border-left-color:#2e7d32 }
   .sched-card.s-done{ border-left-color:#3aa54a }
   .sched-row1{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px }
@@ -794,6 +796,7 @@ function prettyDate(isoStr){
 let schedDate = null;        // yyyy-mm-dd; null = today
 let schedCache = {};         // date -> getSchedule result
 const SCHED_MAX_PAST_DAYS = 60;
+const SCHED_MAX_FUTURE_DAYS = 14;
 
 /* Option 3 flow: try getSchedule first (cached in Schedule tab); if it
    returns zero scheduled rows, auto-sync that date once, then re-fetch. */
@@ -834,12 +837,14 @@ function renderSchedShell(dateParam, loading){
   const isToday = dateParam === todayIso;
   document.getElementById("schedDayName").textContent = isToday ? "Today" : prettyDate(dateParam);
   const dp = document.getElementById("schedDate");
-  dp.max = todayIso;
-  // cap how far back the picker allows
+  // picker range: 60 days back, 14 days forward
+  const maxD = new Date(); maxD.setDate(maxD.getDate()+SCHED_MAX_FUTURE_DAYS);
   const minD = new Date(); minD.setDate(minD.getDate()-SCHED_MAX_PAST_DAYS);
+  dp.max = iso(maxD);
   dp.min = iso(minD);
   dp.value = dateParam;
-  document.getElementById("schedNext").disabled = isToday;
+  document.getElementById("schedNext").disabled = (dateParam >= iso(maxD));
+  document.getElementById("schedPrev").disabled = (dateParam <= iso(minD));
   if(loading){
     document.getElementById("schedCounts").innerHTML = '';
     document.getElementById("schedList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
@@ -859,6 +864,7 @@ const SCHED_BADGES = {
   LEFT_EARLY:["Left early","sched-badge sc-early",  "s-early"],
   NO_SHOW:   ["No-show",  "sched-badge sc-noshow", "s-noshow"],
   DONE:      ["Done",     "sched-badge sc-done",   "s-done"],
+  UPCOMING:  ["Upcoming", "sched-badge sc-upcoming","s-upcoming"],
   UNSCHEDULED:["Unscheduled","sched-badge sc-unsched","s-unsched"]
 };
 
@@ -873,6 +879,7 @@ function renderSchedule(r, dateParam){
   if(c.leftEarly)  pills.push(`<span class="sched-count sc-early">↩ ${c.leftEarly} left early</span>`);
   if(c.noShow)     pills.push(`<span class="sched-count sc-noshow">✗ ${c.noShow} no-show</span>`);
   if(c.done)       pills.push(`<span class="sched-count sc-done">${c.done} done</span>`);
+  if(c.upcoming)   pills.push(`<span class="sched-count sc-upcoming">○ ${c.upcoming} upcoming</span>`);
   if(c.unscheduled)pills.push(`<span class="sched-count sc-unsched">+ ${c.unscheduled} unscheduled</span>`);
   document.getElementById("schedCounts").innerHTML =
     pills.length ? pills.join("") : '<span class="sched-count sc-done">No shifts scheduled</span>';
@@ -885,11 +892,14 @@ function renderSchedule(r, dateParam){
     html += `<div class="sched-sub">Scheduled (${scheduled.length})</div>`;
     scheduled.forEach(s=>{
       const [label, badgeCls, cardCls] = SCHED_BADGES[s.status] || ["", "sched-badge sc-done", ""];
-      const inMiss = !s.actualIn;
-      const outMiss = !s.actualOut && s.status!=="ON_TIME";
+      const isUpcoming = s.status==="UPCOMING";
+      const inMiss = !s.actualIn && !isUpcoming;   // upcoming = not yet, not a miss
       let delta = "";
       if(s.minsLate)  delta += `<div class="sched-delta late">In ${s.minsLate} min late</div>`;
       if(s.minsEarly) delta += `<div class="sched-delta early">Out ${s.minsEarly} min early</div>`;
+      const actualHtml = s.actualIn
+        ? esc(s.actualIn) + (s.actualOut ? (" – "+esc(s.actualOut)) : " – on shift")
+        : (isUpcoming ? "Not started" : "—");
       html += `
         <div class="sched-card ${cardCls}">
           <div class="sched-row1">
@@ -898,7 +908,7 @@ function renderSchedule(r, dateParam){
           </div>
           <div class="sched-times">
             <div><span class="lbl">Scheduled</span><span class="val">${esc(s.schedStart)} – ${esc(s.schedEnd)}</span></div>
-            <div><span class="lbl">Actual</span><span class="val ${inMiss?'miss':''}">${s.actualIn?esc(s.actualIn):"—"}${s.actualIn?(" – "+(s.actualOut?esc(s.actualOut):"on shift")):""}</span></div>
+            <div><span class="lbl">Actual</span><span class="val ${inMiss?'miss':''}">${actualHtml}</span></div>
           </div>
           ${delta}
         </div>`;
@@ -928,7 +938,7 @@ function renderSchedule(r, dateParam){
   document.getElementById("schedList").innerHTML = html;
 }
 
-/* day nav (mirrors labor nav, with 60-day past cap) */
+/* day nav (60-day past cap, 14-day future cap) */
 function schedShiftDay(delta){
   const cur = schedDate || iso(new Date());
   const parts = cur.split("-");
@@ -936,8 +946,9 @@ function schedShiftDay(delta){
   d.setDate(d.getDate()+delta);
   const todayIso = iso(new Date());
   const next = iso(d);
-  if(next > todayIso) return;
+  const maxD = new Date(); maxD.setDate(maxD.getDate()+SCHED_MAX_FUTURE_DAYS);
   const minD = new Date(); minD.setDate(minD.getDate()-SCHED_MAX_PAST_DAYS);
+  if(next > iso(maxD)) return;
   if(next < iso(minD)) return;
   schedDate = next === todayIso ? null : next;
   loadSchedule();
