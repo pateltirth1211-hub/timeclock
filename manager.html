@@ -148,9 +148,15 @@
   .watermark{ position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
     width:min(80vw,520px); opacity:.04; pointer-events:none; z-index:0 }
   .wrap{ position:relative; z-index:1 }
-  .brand-logo{ height:120px; width:auto }
-  .brand{ text-align:center }
-  html[data-theme="dark"] .brand-logo{ background:#fff; border-radius:18px; padding:10px 16px; }
+  .brand-logo{ height:140px; width:auto }
+  .brand{ text-align:center; position:relative }
+  /* dark mode: glow on the logo + soft radial light pool behind it (no hard box) */
+  html[data-theme="dark"] .brand{
+    background:radial-gradient(ellipse 60% 55% at 50% 42%, rgba(255,255,255,.22), rgba(255,255,255,.10) 45%, rgba(255,255,255,0) 70%);
+  }
+  html[data-theme="dark"] .brand-logo{
+    filter: drop-shadow(0 0 6px rgba(255,255,255,.55)) drop-shadow(0 0 14px rgba(255,255,255,.35));
+  }
   #themeToggle{ position:fixed; top:14px; right:14px; z-index:50; width:42px; height:42px; border-radius:50%;
     border:1px solid var(--line); background:var(--card); font-size:20px; cursor:pointer; line-height:1;
     box-shadow:0 2px 8px rgba(0,0,0,.08); -webkit-appearance:none; appearance:none; touch-action:manipulation }
