@@ -612,8 +612,9 @@ function renderChart(hours, names){
   detail.innerHTML = '<span class="muted">Tap a bar for details</span>';
   if(!hours.length){ box.innerHTML = '<div class="row-empty" style="margin:auto">No labor data.</div>'; axis.innerHTML=""; return; }
 
-  const startH = 4; // 4 AM
-  const slice = hours.slice(startH);
+  const startH = 6;   // 6 AM
+  const endH = 22;    // 10 PM (inclusive)
+  const slice = hours.slice(startH, endH+1);
   const peak = Math.max(...slice, 0);
   // round axis top up to next $10 (minimum $10)
   const top = Math.max(10, Math.ceil(peak/10)*10);
@@ -624,7 +625,7 @@ function renderChart(hours, names){
   axis.innerHTML = axisHtml;
 
   let bars = "";
-  for(let h=startH; h<24; h++){
+  for(let h=startH; h<=endH; h++){
     const val = hours[h]||0;
     const pct = top>0 ? Math.round((val/top)*100) : 0;
     bars += `<div class="lc-bar-wrap" data-h="${h}"><div class="lc-bar ${val<=0?'empty':''}" style="height:${val<=0?2:Math.max(pct,3)}%"></div></div>`;
@@ -632,7 +633,10 @@ function renderChart(hours, names){
   box.innerHTML = bars;
 
   let labels = "";
-  for(let h=startH; h<24; h++){ labels += `<span>${(h%6===0)?hourLabelShort(h):''}</span>`; }
+  for(let h=startH; h<=endH; h++){
+    // show a marker at 6A, 9A, 12P, 3P, 6P, 9P (every 3 hours)
+    labels += `<span>${((h-startH)%3===0)?hourLabelShort(h):''}</span>`;
+  }
   let lab = document.getElementById("laborChartLabels");
   if(!lab){ lab = document.createElement("div"); lab.id="laborChartLabels"; lab.className="lc-hourlabels"; document.querySelector(".labor-chart-wrap").after(lab); }
   lab.innerHTML = labels;
