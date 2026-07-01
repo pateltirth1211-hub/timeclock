@@ -237,6 +237,14 @@
   .labor-daylabel input[type=date]{ width:auto; min-height:32px; padding:5px 10px; font-size:12px; border-radius:9px; text-align:center }
   .labor-cost-big{ font-size:40px; font-weight:800; letter-spacing:-1px; line-height:1 }
   .labor-cost-sub{ font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:4px }
+  .labor-payblock{ max-width:340px; margin:8px auto 0; text-align:left }
+  .labor-payrow{ display:flex; justify-content:space-between; align-items:baseline; padding:3px 0 }
+  .lp-label{ font-size:15px; color:var(--muted); font-weight:600 }
+  .lp-val{ font-size:22px; font-weight:800; letter-spacing:-.5px }
+  .labor-variance{ text-align:right; font-size:13px; font-weight:800; margin-top:5px; padding-top:6px; border-top:1px solid var(--line) }
+  .labor-variance.v-under{ color:#2e7d32 }
+  .labor-variance.v-over{ color:#c0392b }
+  .labor-variance.v-on{ color:var(--muted) }
 
   /* hourly bar chart */
   .labor-detail{ min-height:22px; text-align:center; font-size:14px; font-weight:700; color:var(--ink); margin-bottom:8px }
@@ -418,8 +426,17 @@
           </div>
           <button class="day-arrow" id="laborNext">›</button>
         </div>
-        <div class="labor-cost-big" id="laborCostBig">$0.00</div>
-        <div class="labor-cost-sub" id="laborCostSub">Labor cost</div>
+        <div class="labor-payblock">
+          <div class="labor-payrow">
+            <span class="lp-label">Scheduled</span>
+            <span class="lp-val" id="schedPayVal">$0.00</span>
+          </div>
+          <div class="labor-payrow">
+            <span class="lp-label">Actual</span>
+            <span class="lp-val" id="actualPayVal">$0.00</span>
+          </div>
+          <div class="labor-variance" id="laborVariance"></div>
+        </div>
       </div>
 
       <!-- hourly bar chart -->
@@ -670,7 +687,9 @@ function renderLaborShell(dateParam, loading){
   dp.value = dateParam;
   document.getElementById("laborNext").disabled = isToday;
   if(loading){
-    document.getElementById("laborCostBig").innerHTML = '<span class="mini-spin"></span>';
+    document.getElementById("schedPayVal").innerHTML = '<span class="mini-spin"></span>';
+    document.getElementById("actualPayVal").innerHTML = '<span class="mini-spin"></span>';
+    document.getElementById("laborVariance").textContent = '';
     document.getElementById("laborChart").innerHTML = '';
     document.getElementById("liveList").innerHTML = '<div class="center"><span class="spinner"></span></div>';
   }
@@ -678,7 +697,22 @@ function renderLaborShell(dateParam, loading){
 
 function renderLabor(data, dateParam){
   renderLaborShell(dateParam, false);
-  document.getElementById("laborCostBig").textContent = "$" + (data.labor.total||0).toFixed(2);
+  const actual = data.labor.total || 0;
+  const scheduled = (data.sched && typeof data.sched.scheduledPay==="number") ? data.sched.scheduledPay : 0;
+  document.getElementById("schedPayVal").textContent = "$" + scheduled.toFixed(2);
+  document.getElementById("actualPayVal").textContent = "$" + actual.toFixed(2);
+  const vEl = document.getElementById("laborVariance");
+  const diff = actual - scheduled;
+  if(Math.abs(diff) < 0.01){
+    vEl.textContent = "On budget";
+    vEl.className = "labor-variance v-on";
+  } else if(diff < 0){
+    vEl.textContent = "Under by $" + Math.abs(diff).toFixed(2);
+    vEl.className = "labor-variance v-under";
+  } else {
+    vEl.textContent = "Over by $" + diff.toFixed(2);
+    vEl.className = "labor-variance v-over";
+  }
   renderChart(data.labor.hours||[], data.labor.names||[]);
   renderTeam(data.team||[], data.sched||{scheduled:[],unscheduled:[]});
 }
