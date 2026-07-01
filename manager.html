@@ -320,6 +320,10 @@
   .prob-type{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:3px 8px; border-radius:999px; white-space:nowrap; height:fit-content }
   .prob-type.fix{ background:#e7f3e8; color:var(--green) }
   .prob-type.att{ background:#fdeaea; color:#c0392b }
+  .prob-card.v-noshow{ border-left-color:#c0392b }
+  .prob-card.v-late{ border-left-color:#c47a16 }
+  .prob-type.noshow{ background:#fde2e0; color:#c0392b }
+  .prob-type.late{ background:#fff0d9; color:#c47a16 }
   .prob-issue{ font-size:14px; margin:6px 0 2px }
   .prob-fix{ font-size:13px; color:var(--muted); margin-bottom:12px }
   .prob-fix b{ color:var(--ink) }
@@ -1348,8 +1352,13 @@ async function loadProblems(){
     r.problems.forEach(p=>{
       const autofix = p.type==="AUTOFIX";
       const editable = p.editable !== false;   // default true if backend didn't send it
+      const variance = p.variance || "";        // 'NO_SHOW' | 'LATE' | ''
       const div = document.createElement("div");
-      div.className = "prob-card" + (autofix?"":" attention");
+      let cardCls = "prob-card";
+      if(variance==="NO_SHOW") cardCls += " v-noshow";
+      else if(variance==="LATE") cardCls += " v-late";
+      else if(!autofix) cardCls += " attention";
+      div.className = cardCls;
       let btns;
       if(autofix){
         btns = `<div class="prob-btns">
@@ -1366,10 +1375,14 @@ async function loadProblems(){
              <button class="btn-deny" data-deny="${p.row}">Dismiss</button>
            </div>`;
       }
+      let typePill;
+      if(variance==="NO_SHOW") typePill = `<span class="prob-type noshow">No-show</span>`;
+      else if(variance==="LATE") typePill = `<span class="prob-type late">Late</span>`;
+      else typePill = `<span class="prob-type ${autofix?'fix':'att'}">${autofix?'Auto-fixable':'Needs attention'}</span>`;
       div.innerHTML = `
         <div class="prob-top">
           <span class="prob-who">${esc(p.employee||"—")} · ${esc(p.date||"")}</span>
-          <span class="prob-type ${autofix?'fix':'att'}">${autofix?'Auto-fixable':'Needs attention'}</span>
+          ${typePill}
         </div>
         <div class="prob-issue">${esc(p.issue)}</div>
         <div class="prob-fix">Suggested: <b>${esc(p.fix||"—")}</b></div>
