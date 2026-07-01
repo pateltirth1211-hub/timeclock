@@ -64,6 +64,16 @@
   .live-thumb{width:48px; height:48px; border-radius:10px; object-fit:cover; background:#eee; cursor:pointer; flex-shrink:0}
   .live-noimg{display:flex; align-items:center; justify-content:center; color:#bbb; font-weight:700}
   .live-since{font-size:13px; color:var(--muted); margin-top:2px}
+  /* on-time schedule indicators (On Shift team rows) */
+  .ot{ display:inline-block; margin-top:4px; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; letter-spacing:.2px }
+  .ot-ontime{ background:#e3f4e4; color:#2e7d32 }
+  .ot-late{ background:#fff0d9; color:#c47a16 }
+  .ot-early{ background:#fce8d6; color:#cb6a1e }
+  .ot-unsched{ background:#dfeffc; color:#1d6fb8 }
+  html[data-theme="dark"] .ot-ontime{ background:#1c3320; color:#7fd08a }
+  html[data-theme="dark"] .ot-late{ background:#3a2f16; color:#e8b866 }
+  html[data-theme="dark"] .ot-early{ background:#3a2a18; color:#e0a06a }
+  html[data-theme="dark"] .ot-unsched{ background:#16283a; color:#7bb5e0 }
   .badge{padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px}
   .badge-working{background:#e7f3e8; color:var(--green)}
   .badge-break{background:#fff3e0; color:var(--orange)}
@@ -631,7 +641,18 @@ async function loadLive(force){
       api({action:"getTeamDay", pin:adminPin, date:dateParam}),
       api({action:"getHourlyLabor", pin:adminPin, date:dateParam})
     ]);
-    const data = { team: teamR.ok?teamR.team:[], labor: laborR.ok?laborR:{hours:[],total:0} };
+    // schedule comparison (on-time indicators). Option 3: if today has no
+    // scheduled rows yet, auto-sync once so badges populate.
+    let schedR = await api({action:"getSchedule", pin:adminPin, date:dateParam});
+    let sched = (schedR && schedR.ok) ? schedR : {scheduled:[], unscheduled:[]};
+    if((sched.scheduled||[]).length===0 && (sched.unscheduled||[]).length===0){
+      const sy = await api({action:"syncSchedule", pin:adminPin, date:dateParam});
+      if(sy && sy.ok){
+        schedR = await api({action:"getSchedule", pin:adminPin, date:dateParam});
+        if(schedR && schedR.ok) sched = schedR;
+      }
+    }
+    const data = { team: teamR.ok?teamR.team:[], labor: laborR.ok?laborR:{hours:[],total:0}, sched: sched };
     teamCache[dateParam] = data;
     if((laborDate || iso(new Date())) === dateParam) renderLabor(data, dateParam);
   }catch(e){}
@@ -655,7 +676,7 @@ function renderLabor(data, dateParam){
   renderLaborShell(dateParam, false);
   document.getElementById("laborCostBig").textContent = "$" + (data.labor.total||0).toFixed(2);
   renderChart(data.labor.hours||[], data.labor.names||[]);
-  renderTeam(data.team||[]);
+  renderTeam(data.team||[], data.sched||{scheduled:[],unscheduled:[]});
 }
 
 /* hourly bar chart — 4 AM to midnight, $10-increment axis, tappable bars */
@@ -711,13 +732,25 @@ function hourLabel(h){ const ap=h>=12?"PM":"AM"; let hh=h%12||12; return hh+" "+
 function hourLabelShort(h){ const ap=h>=12?"P":"A"; let hh=h%12||12; return hh+ap; }
 
 /* team list */
-function renderTeam(team){
+function renderTeam(team, sched){
   const box = document.getElementById("liveList");
   let list = team.slice();
   if(teamFilter!=="ALL") list = list.filter(p=>p.status===teamFilter);
   if(teamSearchText) list = list.filter(p=>p.name.toLowerCase().includes(teamSearchText.toLowerCase()));
 
   if(!list.length){ box.innerHTML = '<div class="row-empty">No results found.</div>'; return; }
+
+  // build a name -> [schedule entries] lookup so we can match each team row
+  // to the right shift (matters for split shifts). Match on clock-in time.
+  const schedByName = {};
+  ((sched&&sched.scheduled)||[]).forEach(s=>{
+    (schedByName[s.name] = schedByName[s.name] || []).push(s);
+  });
+  const unschedByName = {};
+  ((sched&&sched.unscheduled)||[]).forEach(u=>{
+    (unschedByName[u.name] = unschedByName[u.name] || []).push(u);
+  });
+
   box.innerHTML = "";
   list.forEach(p=>{
     const onBreak = p.state==="ON_BREAK";
@@ -729,14 +762,43 @@ function renderTeam(team){
     else if(p.status==="AUTO_OUT") statusBadge = `<span class="badge badge-auto">Auto out</span>`;
     else statusBadge = `<span class="badge badge-out">Out</span>`;
     const timeline = p.status==="IN" ? `Since ${esc(p.since)}` : `${esc(p.since)} – ${esc(p.until||'—')}`;
+    const schedBadge = scheduleBadgeFor(p, schedByName, unschedByName);
     div.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
       ${pic}
       <div><div class="live-name">${esc(p.name)} ${titlePill(p.title)}</div>
-      <div class="live-since">${timeline}</div></div></div>
+      <div class="live-since">${timeline}</div>
+      ${schedBadge}</div></div>
       ${statusBadge}`;
     box.appendChild(div);
   });
   box.querySelectorAll(".live-thumb[data-full]").forEach(img=> img.addEventListener("click", ()=> showPhoto(img.dataset.full)));
+}
+
+/* pick the right schedule verdict for a team-list row and return a small badge.
+   Matches split shifts by clock-in time; suppresses end-checks for AUTO_OUT. */
+function scheduleBadgeFor(p, schedByName, unschedByName){
+  const cands = schedByName[p.name] || [];
+  // match the scheduled shift whose actual-in equals this row's clock-in
+  let match = cands.find(s=> s.actualIn && s.actualIn === p.since);
+  // fallback: if no exact clock-in match but exactly one shift, use it
+  if(!match && cands.length===1) match = cands[0];
+
+  if(match){
+    let status = match.status;
+    // AUTO_OUT: the 10 PM cutoff isn't a real end — show start-side verdict only
+    if(p.status==="AUTO_OUT" && (status==="LEFT_EARLY" || status==="DONE")){
+      status = (match.minsLate ? "LATE" : "ON_TIME");
+    }
+    if(status==="ON_TIME") return `<span class="ot ot-ontime">✓ On time</span>`;
+    if(status==="DONE")    return `<span class="ot ot-ontime">✓ On time</span>`;
+    if(status==="LATE")    return `<span class="ot ot-late">⚠ ${match.minsLate?('In '+match.minsLate+' min late'):'Late'}</span>`;
+    if(status==="LEFT_EARLY") return `<span class="ot ot-early">↩ ${match.minsEarly?('Out '+match.minsEarly+' min early'):'Left early'}</span>`;
+    // NO_SHOW/UPCOMING shouldn't occur for someone who punched; ignore
+    return "";
+  }
+  // not on the schedule at all → unscheduled (only if they actually have a punch, which team rows do)
+  if((unschedByName[p.name]||[]).length) return `<span class="ot ot-unsched">+ Unscheduled</span>`;
+  return "";
 }
 
 function titlePill(title){
@@ -775,13 +837,13 @@ document.querySelectorAll(".team-tab").forEach(t=>{
     t.classList.add("active");
     teamFilter = t.dataset.status;
     const cur = laborDate || iso(new Date());
-    if(teamCache[cur]) renderTeam(teamCache[cur].team);
+    if(teamCache[cur]) renderTeam(teamCache[cur].team, teamCache[cur].sched);
   });
 });
 document.getElementById("teamSearch").addEventListener("input", e=>{
   teamSearchText = e.target.value;
   const cur = laborDate || iso(new Date());
-  if(teamCache[cur]) renderTeam(teamCache[cur].team);
+  if(teamCache[cur]) renderTeam(teamCache[cur].team, teamCache[cur].sched);
 });
 
 function prettyDate(isoStr){
