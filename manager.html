@@ -1089,11 +1089,19 @@ document.getElementById("schedDate").addEventListener("change", e=>{
   schedDate = e.target.value === todayIso ? null : e.target.value;
   loadSchedule();
 });
-document.getElementById("schedResync").addEventListener("click", ()=>{
-  const dateParam = schedDate || iso(new Date());
-  delete schedCache[dateParam];
-  toast("Re-syncing from Connecteam…");
-  loadSchedule(true);
+document.getElementById("schedResync").addEventListener("click", async ()=>{
+  toast("Re-syncing ±30 days from Connecteam…");
+  try{
+    const r = await api({action:"syncSchedule", pin:adminPin, full:true});
+    schedCache = {};        // whole window refreshed — drop all cached days
+    teamCache = {};         // On Shift scheduled-pay cache also depends on schedule
+    if(r && r.ok){
+      toast(r.message || "Schedule refreshed");
+    } else {
+      toast((r && r.error) ? r.error : "Re-sync failed");
+    }
+  }catch(e){ toast("Re-sync failed"); }
+  loadSchedule(false);
 });
 
 /* ---- shared employee cache (preloaded on login, used by Staff / team filter / Add Entry) ---- */
