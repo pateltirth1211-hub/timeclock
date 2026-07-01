@@ -648,8 +648,9 @@ let teamSearchText = "";
 async function loadLive(force){
   const dateParam = laborDate || iso(new Date());
   const isToday = dateParam === iso(new Date());
+  const isPast = dateParam < iso(new Date());
 
-  // past days can use cache; today always refreshes
+  // non-today days: once cached, read cache (past plans are settled; future re-pulls on 5AM job)
   if(!force && !isToday && teamCache[dateParam]){
     renderLabor(teamCache[dateParam], dateParam);
     return;
@@ -662,30 +663,40 @@ async function loadLive(force){
       api({action:"getTeamDay", pin:adminPin, date:dateParam}),
       api({action:"getHourlyLabor", pin:adminPin, date:dateParam})
     ]);
-    // schedule comparison (on-time indicators). Option 3: if today has no
-    // scheduled rows yet, auto-sync once so badges populate.
+    // schedule comparison (on-time indicators + scheduled pay).
+    // Auto-sync when there are no SCHEDULED rows (needed for pay), regardless of unscheduled.
     let schedR = await api({action:"getSchedule", pin:adminPin, date:dateParam});
     let sched = (schedR && schedR.ok) ? schedR : {scheduled:[], unscheduled:[]};
-    if((sched.scheduled||[]).length===0 && (sched.unscheduled||[]).length===0){
+    let scheduleMissing = false;
+    if((sched.scheduled||[]).length===0){
       const sy = await api({action:"syncSchedule", pin:adminPin, date:dateParam});
       if(sy && sy.ok){
         schedR = await api({action:"getSchedule", pin:adminPin, date:dateParam});
         if(schedR && schedR.ok) sched = schedR;
       }
+      // if STILL no scheduled rows after a sync attempt, this day genuinely has no
+      // schedule data (Connecteam no longer has it, or none was published) → show "—"
+      if((sched.scheduled||[]).length===0) scheduleMissing = true;
     }
-    const data = { team: teamR.ok?teamR.team:[], labor: laborR.ok?laborR:{hours:[],total:0}, sched: sched };
+    const data = { team: teamR.ok?teamR.team:[], labor: laborR.ok?laborR:{hours:[],total:0},
+                   sched: sched, scheduleMissing: scheduleMissing };
     teamCache[dateParam] = data;
     if((laborDate || iso(new Date())) === dateParam) renderLabor(data, dateParam);
   }catch(e){}
 }
 
 function renderLaborShell(dateParam, loading){
-  const isToday = dateParam === iso(new Date());
+  const todayIso = iso(new Date());
+  const isToday = dateParam === todayIso;
   document.getElementById("laborDayName").textContent = isToday ? "Today" : prettyDate(dateParam);
   const dp = document.getElementById("laborDate");
-  dp.max = iso(new Date());
+  const maxD = new Date(); maxD.setDate(maxD.getDate()+14);
+  const minD = new Date(); minD.setDate(minD.getDate()-60);
+  dp.max = iso(maxD);
+  dp.min = iso(minD);
   dp.value = dateParam;
-  document.getElementById("laborNext").disabled = isToday;
+  document.getElementById("laborNext").disabled = (dateParam >= iso(maxD));
+  document.getElementById("laborPrev").disabled = (dateParam <= iso(minD));
   if(loading){
     document.getElementById("schedPayVal").innerHTML = '<span class="mini-spin"></span>';
     document.getElementById("actualPayVal").innerHTML = '<span class="mini-spin"></span>';
@@ -698,20 +709,33 @@ function renderLaborShell(dateParam, loading){
 function renderLabor(data, dateParam){
   renderLaborShell(dateParam, false);
   const actual = data.labor.total || 0;
-  const scheduled = (data.sched && typeof data.sched.scheduledPay==="number") ? data.sched.scheduledPay : 0;
-  document.getElementById("schedPayVal").textContent = "$" + scheduled.toFixed(2);
-  document.getElementById("actualPayVal").textContent = "$" + actual.toFixed(2);
   const vEl = document.getElementById("laborVariance");
-  const diff = actual - scheduled;
-  if(Math.abs(diff) < 0.01){
-    vEl.textContent = "On budget";
+  document.getElementById("actualPayVal").textContent = "$" + actual.toFixed(2);
+
+  if(data.scheduleMissing){
+    // no schedule data for this day (Connecteam no longer has it / none published)
+    document.getElementById("schedPayVal").textContent = "—";
+    vEl.textContent = "No schedule data";
     vEl.className = "labor-variance v-on";
-  } else if(diff < 0){
-    vEl.textContent = "Under by $" + Math.abs(diff).toFixed(2);
-    vEl.className = "labor-variance v-under";
   } else {
-    vEl.textContent = "Over by $" + diff.toFixed(2);
-    vEl.className = "labor-variance v-over";
+    const scheduled = (data.sched && typeof data.sched.scheduledPay==="number") ? data.sched.scheduledPay : 0;
+    document.getElementById("schedPayVal").textContent = "$" + scheduled.toFixed(2);
+    const isFuture = dateParam > iso(new Date());
+    const diff = actual - scheduled;
+    if(isFuture){
+      // future day: nothing punched yet — "Actual" is just what's happened so far (usually $0)
+      vEl.textContent = "Upcoming — planned $" + scheduled.toFixed(2);
+      vEl.className = "labor-variance v-on";
+    } else if(Math.abs(diff) < 0.01){
+      vEl.textContent = "On budget";
+      vEl.className = "labor-variance v-on";
+    } else if(diff < 0){
+      vEl.textContent = "Under by $" + Math.abs(diff).toFixed(2);
+      vEl.className = "labor-variance v-under";
+    } else {
+      vEl.textContent = "Over by $" + diff.toFixed(2);
+      vEl.className = "labor-variance v-over";
+    }
   }
   renderChart(data.labor.hours||[], data.labor.names||[]);
   renderTeam(data.team||[], data.sched||{scheduled:[],unscheduled:[]});
@@ -856,7 +880,10 @@ function laborShiftDay(delta){
   d.setDate(d.getDate()+delta);
   const todayIso = iso(new Date());
   const next = iso(d);
-  if(next > todayIso) return;
+  const maxD = new Date(); maxD.setDate(maxD.getDate()+14);
+  const minD = new Date(); minD.setDate(minD.getDate()-60);
+  if(next > iso(maxD)) return;
+  if(next < iso(minD)) return;
   laborDate = next === todayIso ? null : next;
   loadLive();
 }
@@ -864,6 +891,7 @@ document.getElementById("laborPrev").addEventListener("click", ()=> laborShiftDa
 document.getElementById("laborNext").addEventListener("click", ()=> laborShiftDay(1));
 document.getElementById("laborDate").addEventListener("change", e=>{
   const todayIso = iso(new Date());
+  if(!e.target.value) return;
   laborDate = e.target.value === todayIso ? null : e.target.value;
   loadLive();
 });
