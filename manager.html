@@ -1347,17 +1347,25 @@ async function loadProblems(){
     box.innerHTML = "";
     r.problems.forEach(p=>{
       const autofix = p.type==="AUTOFIX";
+      const editable = p.editable !== false;   // default true if backend didn't send it
       const div = document.createElement("div");
       div.className = "prob-card" + (autofix?"":" attention");
-      const btns = autofix
-        ? `<div class="prob-btns">
+      let btns;
+      if(autofix){
+        btns = `<div class="prob-btns">
              <button class="btn-accept" data-accept="${p.row}">Accept fix</button>
              <button class="btn-deny" data-deny="${p.row}">Deny</button>
-           </div>`
-        : `<div class="prob-btns">
+           </div>`;
+      } else if(editable){
+        btns = `<div class="prob-btns">
              <button class="btn-fixit" data-fix="${p.timeRow}">Edit shift</button>
              <button class="btn-deny" data-deny="${p.row}">Dismiss</button>
            </div>`;
+      } else {
+        btns = `<div class="prob-btns">
+             <button class="btn-deny" data-deny="${p.row}">Dismiss</button>
+           </div>`;
+      }
       div.innerHTML = `
         <div class="prob-top">
           <span class="prob-who">${esc(p.employee||"—")} · ${esc(p.date||"")}</span>
