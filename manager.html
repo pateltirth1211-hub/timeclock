@@ -1650,7 +1650,8 @@ function openEmp(e){
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" id="saveEmp">Save</button>
       <button class="btn btn-dark" id="closeModal">Cancel</button>
-    </div>`;
+    </div>
+    ${isNew ? '' : '<button class="btn" id="deactivateEmp" style="margin-top:10px;width:100%;background:#c0392b;color:#fff">Deactivate &amp; remove from clock</button>'}`;
   document.getElementById("overlay").classList.add("show");
   document.getElementById("closeModal").addEventListener("click", closeModal);
   const phoneInput = document.getElementById("ePhone");
@@ -1672,6 +1673,34 @@ function openEmp(e){
       toast("Something went wrong — try again","err"); btn.innerHTML="Save"; btn.disabled=false;
     }
   });
+
+  const deBtn = document.getElementById("deactivateEmp");
+  if(deBtn && !isNew){
+    deBtn.addEventListener("click", async ()=>{
+      const ok = confirm(
+        "Deactivate "+e.name+"?\n\n"+
+        "• They'll be removed from the clock (can't punch in) and the active roster.\n"+
+        "• Their punch & pay history is KEPT.\n"+
+        "• Their upcoming scheduled shifts will be removed.\n\n"+
+        "Reminder: also unschedule them in Connecteam, or the nightly sync will re-add future shifts.\n\n"+
+        "This can be undone by re-editing them and turning Active back on."
+      );
+      if(!ok) return;
+      deBtn.innerHTML='<span class="spinner"></span>Deactivating…'; deBtn.disabled=true;
+      try{
+        const res = await api({action:"deactivateEmployee", pin:adminPin, row:e.row});
+        if(res.ok){
+          toast(res.message,"ok");
+          if(res.reminder) setTimeout(()=>toast(res.reminder,"err"), 1200);
+          closeModal(); empCacheLoaded=false; loadStaff();
+        } else {
+          toast(res.error||"Error","err"); deBtn.innerHTML="Deactivate &amp; remove from clock"; deBtn.disabled=false;
+        }
+      }catch(err){
+        toast("Something went wrong — try again","err"); deBtn.innerHTML="Deactivate &amp; remove from clock"; deBtn.disabled=false;
+      }
+    });
+  }
 }
 
 /* ---- utils ---- */
