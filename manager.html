@@ -585,9 +585,10 @@ let lastRows = [];
 let rateCache = {};
 
 /* ---- API (text/plain POST with JSON body — CORS-safe, handles photos) ---- */
-async function api(payload){
+async function api(payload, timeoutMs){
   const ctrl = new AbortController();
-  const timer = setTimeout(()=>ctrl.abort(), 30000);   // 30s cap so it can't hang forever
+  const cap = timeoutMs || 30000;   // default 30s; callers can pass a longer cap for slow ops
+  const timer = setTimeout(()=>ctrl.abort(), cap);
   try {
     const res = await fetch(API, { method:"POST", body: JSON.stringify(payload), signal: ctrl.signal });
     const text = await res.text();
@@ -1099,17 +1100,24 @@ document.getElementById("schedDate").addEventListener("change", e=>{
   loadSchedule();
 });
 document.getElementById("schedResync").addEventListener("click", async ()=>{
-  toast("Re-syncing ±30 days from Connecteam…");
+  const btn = document.getElementById("schedResync");
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="mini-spin"></span> Syncing… (up to a few min)';
+  toast("Re-syncing ±30 days from Connecteam… this can take a few minutes.");
   try{
-    const r = await api({action:"syncSchedule", pin:adminPin, full:true});
+    // full ±30 sweep is slow (~3-4 min for a big schedule) — allow up to 6 min, not the 30s default
+    const r = await api({action:"syncSchedule", pin:adminPin, full:true}, 360000);
     schedCache = {};        // whole window refreshed — drop all cached days
     teamCache = {};         // On Shift scheduled-pay cache also depends on schedule
     if(r && r.ok){
-      toast(r.message || "Schedule refreshed");
+      toast(r.message || "Schedule refreshed", "ok");
     } else {
-      toast((r && r.error) ? r.error : "Re-sync failed");
+      toast((r && r.error) ? r.error : "Re-sync failed", "err");
     }
-  }catch(e){ toast("Re-sync failed"); }
+  }catch(e){ toast("Re-sync failed", "err"); }
+  btn.disabled = false;
+  btn.innerHTML = label;
   loadSchedule(false);
 });
 
