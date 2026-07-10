@@ -1099,26 +1099,45 @@ document.getElementById("schedDate").addEventListener("change", e=>{
   schedDate = e.target.value === todayIso ? null : e.target.value;
   loadSchedule();
 });
-document.getElementById("schedResync").addEventListener("click", async ()=>{
+let schedSyncTimer = null;
+document.getElementById("schedResync").addEventListener("click", ()=>{
   const btn = document.getElementById("schedResync");
-  const label = btn.textContent;
+
+  // If the button is in "Refresh" mode, just reload the schedule view (no re-sync).
+  if(btn.dataset.mode === "refresh"){
+    btn.dataset.mode = "";
+    btn.innerHTML = '<span class="mini-spin"></span> Refreshing…';
+    btn.disabled = true;
+    schedCache = {}; teamCache = {};
+    loadSchedule(false);
+    setTimeout(()=>{ btn.disabled=false; btn.innerHTML="Re-sync from Connecteam"; }, 1500);
+    return;
+  }
+
+  // Otherwise: kick off the ±30 sweep (fire-and-forget). The backend finishes in
+  // ~3-4 min even if the proxy response times out, so we DON'T await it — that's what
+  // caused the misleading "unexpected error" before. We show a countdown, then switch
+  // the button to "Refresh schedule" so the user can load the results.
+  if(schedSyncTimer) clearInterval(schedSyncTimer);
   btn.disabled = true;
-  btn.innerHTML = '<span class="mini-spin"></span> Syncing… (up to a few min)';
-  toast("Re-syncing ±30 days from Connecteam… this can take a few minutes.");
-  try{
-    // full ±30 sweep is slow (~3-4 min for a big schedule) — allow up to 6 min, not the 30s default
-    const r = await api({action:"syncSchedule", pin:adminPin, full:true}, 360000);
-    schedCache = {};        // whole window refreshed — drop all cached days
-    teamCache = {};         // On Shift scheduled-pay cache also depends on schedule
-    if(r && r.ok){
-      toast(r.message || "Schedule refreshed", "ok");
+  btn.innerHTML = '<span class="mini-spin"></span> Sync started…';
+  toast("Sync started — pulling ±30 days from Connecteam in the background (~3-4 min). The button will switch to “Refresh schedule” when it’s ready.", "ok");
+
+  api({action:"syncSchedule", pin:adminPin, full:true}, 360000).catch(()=>{});   // fire, ignore reply
+
+  let remain = 240;   // ~4 min countdown
+  schedSyncTimer = setInterval(()=>{
+    remain -= 5;
+    if(remain > 0){
+      btn.innerHTML = '<span class="mini-spin"></span> Syncing… ~' + Math.ceil(remain/60) + ' min left';
     } else {
-      toast((r && r.error) ? r.error : "Re-sync failed", "err");
+      clearInterval(schedSyncTimer); schedSyncTimer = null;
+      btn.disabled = false;
+      btn.dataset.mode = "refresh";
+      btn.innerHTML = "Refresh schedule ↻";
+      toast("Sync should be complete. Tap “Refresh schedule” to load the latest data.", "ok");
     }
-  }catch(e){ toast("Re-sync failed", "err"); }
-  btn.disabled = false;
-  btn.innerHTML = label;
-  loadSchedule(false);
+  }, 5000);
 });
 
 /* ---- shared employee cache (preloaded on login, used by Staff / team filter / Add Entry) ---- */
