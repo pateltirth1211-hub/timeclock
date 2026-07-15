@@ -1,25 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.14.0/dist/tabler-icons.min.css">
 <!-- always fetch the latest version on refresh (no manual ?v= needed) -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>busyANT Time Clock — Manager</title>
 <style>
+  /* ── Design tokens — shared language with busyANT Reporting ──
+     Dark is the default. Never hardcode a hex in a component; always use a token. */
   :root{
-    --orange:#F47B20; --green:#2e7d32;
-    --black:#1a1a1a;            /* near-black for dark fills (stays constant for buttons) */
-    --ink:#1a1a1a; --muted:#6b6b6b; --line:#e6e6e6; --bg:#faf7f3; --card:#ffffff;
-    --keybg:#f3efe9; --keypress:#eae4db; --softbg:#faf7f3;
+    --amber:#EF9F27; --amber-d:#BA7517; --amber-dd:#854F0B; --amber-t:#412402; --amber-bg:#3a2c12;
+    --teal:#5DCAA5; --teal-bg:#0f3d2e;
+    --red:#E24B4A; --red-bg:#3a1414;
+    --blue:#85B7EB;
+    --bg:#0e1420; --card:#151d2b; --card2:#1a2333;
+    --ink:#F1EFE8; --muted:#7d8598; --text3:#5c6373;
+    --line:#1f2a3d; --border2:#2a3547; --barlow:#3a4658;
+    --radius:12px; --radius-lg:16px;
+
+    /* legacy aliases so existing components keep working */
+    --orange:var(--amber); --green:var(--teal); --black:#0b111c;
+    --keybg:var(--card2); --keypress:var(--border2); --softbg:var(--card);
   }
-  html[data-theme="dark"]{
-    --ink:#f2f2f2; --muted:#9aa0a6; --line:#2a2d31; --bg:#0e0f12; --card:#1a1c20;
-    --green:#4caf50;
-    --keybg:#26282d; --keypress:#30333a; --softbg:#17191d;
+  html[data-theme="light"]{
+    --bg:#F1EFE8; --card:#FFFFFF; --card2:#F7F5EF;
+    --ink:#2C2C2A; --muted:#5F5E5A; --text3:#888780;
+    --line:#E2E0D8; --border2:#CFCCC2; --barlow:#CFCCC2;
+    --teal:#1D9E75;
+    --amber-bg:#FAEEDA; --teal-bg:#E1F5EE; --red-bg:#FCEBEB;
+    --black:#1a1a1a;
+    --keybg:#f3efe9; --keypress:#eae4db; --softbg:#F7F5EF;
   }
-  html[data-theme="dark"] body{ background:var(--bg); }
+  body{ background:var(--bg); }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;touch-action:manipulation;-webkit-text-size-adjust:100%}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); min-height:100vh}
@@ -44,16 +59,18 @@
   .key.action{background:var(--black); color:#fff; font-size:17px}
 
   /* tabs */
-  .tabs{position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:60;
-    width:calc(100% - 24px); max-width:740px;
-    display:flex; gap:4px; background:var(--card); border:1px solid var(--line);
-    border-radius:22px; padding:7px; box-shadow:0 6px 24px rgba(0,0,0,.18)}
-  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 4px;
-    border:none; background:transparent; border-radius:15px; font-weight:700; font-size:11.5px; cursor:pointer;
-    color:var(--muted); transition:.15s; -webkit-appearance:none; appearance:none; touch-action:manipulation}
-  .tab svg{ width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round }
+  /* Copilot-style tab bar: no container fill, only the active tab gets a pill.
+     Kept at the bottom — best thumb reach on a phone behind the counter. */
+  .tabs{position:fixed; left:50%; transform:translateX(-50%); bottom:12px; z-index:60;
+    width:calc(100% - 20px); max-width:740px;
+    display:flex; gap:2px; background:var(--bg); border:1px solid var(--line);
+    border-radius:22px; padding:6px}
+  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 4px;
+    border:none; background:transparent; border-radius:16px; font-weight:400; font-size:11.5px; cursor:pointer;
+    color:var(--text3); transition:.18s; -webkit-appearance:none; appearance:none; touch-action:manipulation}
+  .tab i{ font-size:21px; line-height:1 }
   .tab.active{background:var(--softbg); color:var(--orange)}
-  html[data-theme="dark"] .tab.active{ background:#26282d }
+  
   #appView{ padding-bottom:90px }   /* room for floating bar */
 
   h2{font-size:16px; margin:0 0 14px; font-weight:800}
@@ -64,24 +81,22 @@
   .live-item{display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--line)}
   .live-item:last-child{border-bottom:none}
   .live-name{font-weight:700; font-size:16px}
-  .live-thumb{width:48px; height:48px; border-radius:10px; object-fit:cover; background:#eee; cursor:pointer; flex-shrink:0}
-  .live-noimg{display:flex; align-items:center; justify-content:center; color:#bbb; font-weight:700}
+  .live-thumb{width:48px; height:48px; border-radius:10px; object-fit:cover; background:var(--card2); cursor:pointer; flex-shrink:0}
+  .live-noimg{display:flex; align-items:center; justify-content:center; color:var(--text3); font-weight:700}
   .live-since{font-size:13px; color:var(--muted); margin-top:2px}
   /* on-time schedule indicators (On Shift team rows) */
-  .ot{ display:inline-block; margin-top:4px; font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; letter-spacing:.2px }
-  .ot-ontime{ background:#e3f4e4; color:#2e7d32 }
-  .ot-late{ background:#fff0d9; color:#c47a16 }
-  .ot-early{ background:#fce8d6; color:#cb6a1e }
-  .ot-unsched{ background:#dfeffc; color:#1d6fb8 }
-  html[data-theme="dark"] .ot-ontime{ background:#1c3320; color:#7fd08a }
-  html[data-theme="dark"] .ot-late{ background:#3a2f16; color:#e8b866 }
-  html[data-theme="dark"] .ot-early{ background:#3a2a18; color:#e0a06a }
-  html[data-theme="dark"] .ot-unsched{ background:#16283a; color:#7bb5e0 }
+  .ot{ display:inline-block; margin-top:4px; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; letter-spacing:.2px }
+  .ot-ontime{ background:var(--teal-bg); color:var(--teal) }
+  .ot-late{ background:var(--amber-bg); color:var(--amber) }
+  .ot-early{ background:var(--amber-bg); color:var(--amber-d) }
+  .ot-unsched{ background:var(--card2); color:var(--blue) }
+  html[data-theme="light"] .ot-late{ color:var(--amber-dd) }
+  html[data-theme="light"] .ot-unsched{ background:#E6F1FB; color:#185FA5 }
   .badge{padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.4px}
-  .badge-working{background:#e7f3e8; color:var(--green)}
-  .badge-break{background:#fff3e0; color:var(--orange)}
-  .badge-out{background:#f0f0f0; color:var(--muted)}
-  .badge-auto{background:#fdeaea; color:#c0392b}
+  .badge-working{background:var(--teal-bg); color:var(--teal)}
+  .badge-break{background:var(--amber-bg); color:var(--amber)}
+  .badge-out{background:var(--card2); color:var(--muted)}
+  .badge-auto{background:var(--red-bg); color:var(--red)}
 
   /* controls */
   .field{margin-bottom:12px}
@@ -97,22 +112,23 @@
   input[type=date]::-webkit-calendar-picker-indicator,
   input[type=time]::-webkit-calendar-picker-indicator{ margin-left:auto; }
   /* dark mode: force readable text in date/select pickers (iOS defaults to dark text) */
-  html[data-theme="dark"] input[type=date],
-  html[data-theme="dark"] input[type=time],
-  html[data-theme="dark"] select{ color:var(--ink); color-scheme:dark; }
+  input[type=date], input[type=time], select{ color:var(--ink); color-scheme:dark; }
+  html[data-theme="light"] input[type=date],
+  html[data-theme="light"] input[type=time],
+  html[data-theme="light"] select{ color-scheme:light; }
   .btn{border:none; border-radius:12px; padding:13px 18px; font-size:15px; font-weight:800; cursor:pointer}
   .btn-primary{background:var(--orange); color:#fff}
   .btn-dark{background:var(--black); color:#fff}
-  html[data-theme="dark"] .btn-dark{ background:#34373d; color:#f2f2f2 }
-  html[data-theme="dark"] .btn-fixit{ background:#34373d; color:#f2f2f2 }
-  html[data-theme="dark"] .btn-sm.btn-dark{ background:#34373d }
+  
+  
+  
   .btn-sm{padding:8px 12px; font-size:13px; border-radius:10px}
   .btn-row{display:flex; gap:10px; flex-wrap:wrap}
   .presets{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px}
   .preset{ border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:999px;
     padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none;
     touch-action:manipulation }
-  .preset:active{ background:#f0ece6 }
+  .preset:active{ background:var(--border2) }
   .preset.active{ background:var(--orange); color:#fff; border-color:var(--orange) }
   .date-row{display:flex; gap:10px}
   .date-row .field{flex:1; min-width:0}
@@ -123,10 +139,10 @@
   /* timesheet table */
   .ts-table{width:100%; border-collapse:collapse; font-size:13px}
   .ts-table th{text-align:left; padding:8px 6px; border-bottom:2px solid var(--line); font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted)}
-  .ts-table td{padding:9px 6px; border-bottom:1px solid #f0f0f0; vertical-align:middle}
+  .ts-table td{padding:9px 6px; border-bottom:1px solid var(--line); vertical-align:middle}
   .ts-table tr:last-child td{border-bottom:none}
   .flagcell{color:var(--orange); font-weight:700; font-size:11px}
-  .thumb{width:34px; height:34px; border-radius:8px; object-fit:cover; cursor:pointer; background:#eee}
+  .thumb{width:34px; height:34px; border-radius:8px; object-fit:cover; cursor:pointer; background:var(--card2)}
   .totals{margin-top:14px; padding-top:14px; border-top:2px solid var(--line); display:flex; justify-content:space-between; font-weight:800; font-size:15px}
   .name-sub{font-weight:700}
 
@@ -136,8 +152,8 @@
   .emp-name{font-weight:700}
   .emp-meta{font-size:12px; color:var(--muted); margin-top:2px}
   .tag{display:inline-block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:2px 7px; border-radius:6px; margin-left:5px}
-  .tag-admin{background:#fff3e0; color:var(--orange)}
-  .tag-off{background:#f0f0f0; color:var(--muted)}
+  .tag-admin{background:var(--amber-bg); color:var(--amber)}
+  .tag-off{background:var(--card2); color:var(--muted)}
 
   /* modal */
   .overlay{position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; padding:18px; z-index:50}
@@ -150,7 +166,7 @@
 
   .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(120px); background:var(--black); color:#fff; padding:14px 22px; border-radius:13px; font-weight:700; box-shadow:0 10px 30px rgba(0,0,0,.25); transition:transform .3s; z-index:60; text-align:center; max-width:90vw}
   .toast.show{transform:translateX(-50%) translateY(0)}
-  .toast.err{background:#c62828}
+  .toast.err{background:var(--red)}
   .toast.ok{background:var(--green)}
   .spinner{display:inline-block; width:16px; height:16px; border:3px solid rgba(0,0,0,.15); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:8px}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -169,9 +185,9 @@
   #themeToggle:active{ transform:scale(.92) }
 
   /* loading overlay */
-  #loadingOverlay{ position:fixed; inset:0; z-index:200; background:rgba(250,247,243,.96);
+  #loadingOverlay{ position:fixed; inset:0; z-index:200; background:rgba(14,20,32,.96);
     display:none; flex-direction:column; align-items:center; justify-content:center }
-  html[data-theme="dark"] #loadingOverlay{ background:rgba(14,15,18,.96) }
+  html[data-theme="light"] #loadingOverlay{ background:rgba(241,239,232,.96) }
   #loadingOverlay.show{ display:flex }
   #loadingOverlay img{ width:min(55vw,240px); animation:floatm 3.5s ease-in-out infinite }
   @keyframes floatm{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-14px) } }
@@ -182,9 +198,9 @@
   /* timesheet CARD layout (phone) */
   .shift-card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px;
     margin-bottom:10px; display:flex; gap:12px; align-items:flex-start }
-  .shift-card .sc-photo{ width:52px; height:52px; border-radius:10px; object-fit:cover; background:#eee; flex-shrink:0; cursor:pointer }
-  .shift-card .sc-noimg{ width:52px; height:52px; border-radius:10px; background:#f0f0f0; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center; color:#bbb; font-weight:700 }
+  .shift-card .sc-photo{ width:52px; height:52px; border-radius:10px; object-fit:cover; background:var(--card2); flex-shrink:0; cursor:pointer }
+  .shift-card .sc-noimg{ width:52px; height:52px; border-radius:10px; background:var(--card2); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; color:var(--text3); font-weight:700 }
   .sc-body{ flex:1; min-width:0 }
   .sc-date{ font-weight:800; font-size:14px; margin-bottom:8px }
   .sc-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:13px }
@@ -203,7 +219,7 @@
   .today-daterow input[type=date]{ width:auto; min-height:34px; padding:6px 10px; font-size:13px; border-radius:10px; text-align:center }
   .day-arrow{ width:40px; height:40px; flex-shrink:0; border:1px solid var(--line); background:var(--card); border-radius:12px;
     font-size:22px; font-weight:800; color:var(--ink); cursor:pointer; line-height:1; -webkit-appearance:none; appearance:none }
-  .day-arrow:active{ background:#f0ece6 }
+  .day-arrow:active{ background:var(--border2) }
   .day-arrow:disabled{ opacity:.3; cursor:default }
   .mini-spin{ display:inline-block; width:18px; height:18px; border:3px solid rgba(0,0,0,.12);
     border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px }
@@ -213,7 +229,7 @@
   .today-stat .lbl{ font-size:12px; color:var(--muted); font-weight:600 }
 
   /* overtime highlighting */
-  .ot-week{ background:#fff3e0; border-color:#ffcc80 }
+  .ot-week{ background:var(--amber-bg); border-color:var(--amber-d) }
   .ot-badge{ display:inline-block; background:var(--orange); color:#fff; font-size:11px; font-weight:800;
     padding:2px 8px; border-radius:999px; letter-spacing:.3px; margin-left:6px; vertical-align:1px }
   .ot-line{ font-size:13px; color:var(--orange); font-weight:700; margin-top:2px }
@@ -240,14 +256,19 @@
   .labor-daylabel input[type=date]{ width:auto; min-height:32px; padding:5px 10px; font-size:12px; border-radius:9px; text-align:center }
   .labor-cost-big{ font-size:40px; font-weight:800; letter-spacing:-1px; line-height:1 }
   .labor-cost-sub{ font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:4px }
-  .labor-payblock{ max-width:340px; margin:8px auto 0; text-align:left }
-  .labor-payrow{ display:flex; justify-content:space-between; align-items:baseline; padding:3px 0 }
-  .lp-label{ font-size:15px; color:var(--muted); font-weight:600 }
-  .lp-val{ font-size:22px; font-weight:800; letter-spacing:-.5px }
-  .labor-variance{ text-align:right; font-size:13px; font-weight:800; margin-top:5px; padding-top:6px; border-top:1px solid var(--line) }
-  .labor-variance.v-under{ color:#2e7d32 }
-  .labor-variance.v-over{ color:#c0392b }
-  .labor-variance.v-on{ color:var(--muted) }
+  /* labor hero — Actual is the headline, variance the verdict, Scheduled the context */
+  .labor-hero{ background:var(--card2); border-radius:var(--radius-lg); padding:16px 14px;
+    max-width:340px; margin:10px auto 0; text-align:center }
+  .lh-label{ font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em }
+  .lh-value{ font-size:34px; font-weight:600; letter-spacing:-.5px; line-height:1.1; margin-top:5px; color:var(--ink) }
+  .lh-sched{ font-size:12px; color:var(--text3); margin-top:8px }
+  .lh-sched span{ color:var(--muted); font-weight:600 }
+  .labor-variance{ display:inline-block; margin-top:9px; font-size:11.5px; font-weight:600;
+    padding:4px 11px; border-radius:999px }
+  .labor-variance:empty{ display:none }
+  .labor-variance.v-under{ background:var(--teal-bg); color:var(--teal) }
+  .labor-variance.v-over{ background:var(--red-bg); color:var(--red) }
+  .labor-variance.v-on{ background:var(--card); color:var(--muted) }
 
   /* hourly bar chart */
   .labor-detail{ min-height:22px; text-align:center; font-size:14px; font-weight:700; color:var(--ink); margin-bottom:8px }
@@ -256,12 +277,19 @@
   .labor-axis{ display:flex; flex-direction:column; justify-content:space-between; width:34px; flex-shrink:0;
     height:160px; padding:6px 0 0; font-size:10px; color:var(--muted); text-align:right }
   .labor-axis span{ line-height:1; transform:translateY(-4px) }
-  .labor-chart{ display:flex; align-items:flex-end; gap:3px; height:160px; padding:10px 0 0; flex:1;
-    border-bottom:2px solid var(--line); border-left:1px solid var(--line); overflow-x:auto }
+  .labor-chart{ position:relative; display:flex; align-items:flex-end; gap:3px; height:160px; padding:10px 0 0; flex:1;
+    border-bottom:2px solid var(--line); border-left:1px solid var(--line) }
   .lc-bar-wrap{ flex:1; min-width:13px; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; cursor:pointer }
-  .lc-bar{ width:70%; background:var(--orange); border-radius:4px 4px 0 0; min-height:2px; transition:height .2s, opacity .15s }
-  .lc-bar.empty{ background:#ececec }
-  .lc-bar-wrap.sel .lc-bar{ background:var(--black) }
+  .lc-bar{ width:70%; border-radius:3px 3px 0 0; min-height:2px; transition:height .2s, opacity .15s;
+    background:var(--barlow) }
+  .lc-bar.above{ background:var(--teal) }      /* busier than the day's average hour */
+  .lc-bar.below{ background:var(--barlow) }
+  .lc-bar.empty{ background:var(--line) }
+  .lc-bar-wrap.sel .lc-bar{ background:var(--amber) }
+  /* dashed average reference line, sits above the bars */
+  .lc-avgline{ position:absolute; left:0; right:0; border-top:1.4px dashed var(--amber); pointer-events:none; z-index:2 }
+  .lc-avgline span{ position:absolute; right:0; top:-14px; font-size:9.5px; font-weight:600; color:var(--amber);
+    background:var(--card); padding:0 3px; border-radius:3px }
   .lc-hourlabels{ display:flex; gap:3px; margin-bottom:18px; font-size:10px; color:var(--muted); padding-left:40px }
   .lc-hourlabels span{ flex:1; min-width:13px; text-align:center }
 
@@ -277,25 +305,30 @@
   /* title pills (color-coded by role) */
   .title-pill{ display:inline-block; font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px;
     letter-spacing:.2px; vertical-align:1px }
-  .t-deli{ background:#fde2e0; color:#c0392b }
-  .t-cashier{ background:#dfeffc; color:#1d6fb8 }
-  .t-stocker{ background:#e3f4e4; color:#2e7d32 }
-  .t-meat{ background:#f3e0ef; color:#9b2d8e }
-  .t-manager{ background:#fff0d9; color:#c47a16 }
-  .t-owner{ background:#1a1a1a; color:#fff }
-  .t-none{ background:#eee; color:#999 }
+  .t-deli{ background:var(--red-bg); color:var(--red) }
+  .t-cashier{ background:#16283a; color:var(--blue) }
+  .t-stocker{ background:var(--teal-bg); color:var(--teal) }
+  .t-meat{ background:#331a30; color:#d68ac8 }
+  .t-manager{ background:var(--amber-bg); color:var(--amber) }
+  .t-owner{ background:var(--card2); color:var(--ink) }
+  html[data-theme="light"] .t-cashier{ background:#E6F1FB; color:#185FA5 }
+  html[data-theme="light"] .t-meat{ background:#FBEAF0; color:#993556 }
+  html[data-theme="light"] .t-owner{ background:#2C2C2A; color:#fff }
+  .t-none{ background:var(--card2); color:var(--text3) }
 
   /* schedule tab */
   .sched-counts{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 16px; justify-content:center }
   .sched-count{ font-size:11px; font-weight:800; padding:4px 11px; border-radius:999px; white-space:nowrap }
-  .sc-ontime{ background:#e3f4e4; color:#2e7d32 }
-  .sc-late{ background:#fff0d9; color:#c47a16 }
-  .sc-early{ background:#fce8d6; color:#cb6a1e }
-  .sc-noshow{ background:#fde2e0; color:#c0392b }
-  .sc-unsched{ background:#dfeffc; color:#1d6fb8 }
-  .sc-upcoming{ background:#ece9f7; color:#5b4b9e }
-  .sc-done{ background:#eef0f2; color:#5a6068 }
-  html[data-theme="dark"] .sc-done{ background:#22252a; color:#aab1b8 }
+  .sc-ontime{ background:var(--teal-bg); color:var(--teal) }
+  .sc-late{ background:var(--amber-bg); color:var(--amber) }
+  .sc-early{ background:var(--amber-bg); color:var(--amber-d) }
+  .sc-noshow{ background:var(--red-bg); color:var(--red) }
+  .sc-unsched{ background:#16283a; color:var(--blue) }
+  .sc-upcoming{ background:#241f3a; color:#a79fe0 }
+  .sc-done{ background:var(--card2); color:var(--muted) }
+  html[data-theme="light"] .sc-unsched{ background:#E6F1FB; color:#185FA5 }
+  html[data-theme="light"] .sc-upcoming{ background:#EEEDFE; color:#534AB7 }
+  
 
   .sched-sub{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
     margin:18px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line) }
@@ -303,10 +336,10 @@
   .sched-card.s-late{ border-left-color:#c47a16 }
   .sched-card.s-early{ border-left-color:#cb6a1e }
   .sched-card.s-noshow{ border-left-color:#c0392b }
-  .sched-card.s-unsched{ border-left-color:#1d6fb8 }
+  .sched-card.s-unsched{ border-left-color:var(--blue) }
   .sched-card.s-upcoming{ border-left-color:#5b4b9e }
-  .sched-card.s-ontime{ border-left-color:#2e7d32 }
-  .sched-card.s-done{ border-left-color:#3aa54a }
+  .sched-card.s-ontime{ border-left-color:var(--teal) }
+  .sched-card.s-done{ border-left-color:var(--teal) }
   .sched-row1{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px }
   .sched-who{ font-weight:800; font-size:15px }
   .sched-badge{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;
@@ -329,12 +362,12 @@
   .prob-top{ display:flex; justify-content:space-between; gap:8px; margin-bottom:4px }
   .prob-who{ font-weight:800; font-size:15px }
   .prob-type{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:3px 8px; border-radius:999px; white-space:nowrap; height:fit-content }
-  .prob-type.fix{ background:#e7f3e8; color:var(--green) }
-  .prob-type.att{ background:#fdeaea; color:#c0392b }
+  .prob-type.fix{ background:var(--teal-bg); color:var(--teal) }
+  .prob-type.att{ background:var(--red-bg); color:var(--red) }
   .prob-card.v-noshow{ border-left-color:#c0392b }
   .prob-card.v-late{ border-left-color:#c47a16 }
-  .prob-type.noshow{ background:#fde2e0; color:#c0392b }
-  .prob-type.late{ background:#fff0d9; color:#c47a16 }
+  .prob-type.noshow{ background:var(--red-bg); color:var(--red) }
+  .prob-type.late{ background:var(--amber-bg); color:var(--amber) }
   .prob-issue{ font-size:14px; margin:6px 0 2px }
   .prob-fix{ font-size:13px; color:var(--muted); margin-bottom:12px }
   .prob-fix b{ color:var(--ink) }
@@ -394,27 +427,12 @@
 
   <!-- APP -->
   <div id="appView" class="hidden">
-    <div class="tabs">
-      <button class="tab active" data-tab="live">
-        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        On Shift
-      </button>
-      <button class="tab" data-tab="schedule">
-        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
-        Schedule
-      </button>
-      <button class="tab" data-tab="sheets">
-        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v17"/></svg>
-        Timesheets
-      </button>
-      <button class="tab" data-tab="staff">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
-        Staff
-      </button>
-      <button class="tab" data-tab="actions">
-        <svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg>
-        Actions
-      </button>
+    <div class="tabs" id="tabbar">
+      <button class="tab active" data-tab="live"><i class="ti ti-clock-hour-4"></i>On Shift</button>
+      <button class="tab" data-tab="schedule"><i class="ti ti-calendar"></i>Schedule</button>
+      <button class="tab" data-tab="sheets"><i class="ti ti-file-text"></i>Timesheets</button>
+      <button class="tab" data-tab="staff"><i class="ti ti-users"></i>Staff</button>
+      <button class="tab" data-tab="actions"><i class="ti ti-alert-triangle"></i>Actions</button>
     </div>
 
     <!-- LIVE / ON SHIFT -->
@@ -429,16 +447,11 @@
           </div>
           <button class="day-arrow" id="laborNext">›</button>
         </div>
-        <div class="labor-payblock">
-          <div class="labor-payrow">
-            <span class="lp-label">Scheduled</span>
-            <span class="lp-val" id="schedPayVal">$0.00</span>
-          </div>
-          <div class="labor-payrow">
-            <span class="lp-label">Actual</span>
-            <span class="lp-val" id="actualPayVal">$0.00</span>
-          </div>
+        <div class="labor-hero">
+          <div class="lh-label">Actual labor</div>
+          <div class="lh-value" id="actualPayVal">$0.00</div>
           <div class="labor-variance" id="laborVariance"></div>
+          <div class="lh-sched">Scheduled <span id="schedPayVal">$0.00</span></div>
         </div>
       </div>
 
@@ -566,14 +579,14 @@ const API = "https://busyant-proxy.pateltirth1211.workers.dev";
 
 /* ---- dark / light theme (remembers choice) ---- */
 (function initTheme(){
-  let saved = "light";
-  try { saved = localStorage.getItem("busyant-theme") || "light"; } catch(e){}
+  let saved = "dark";
+  try { saved = localStorage.getItem("busyant-theme") || "dark"; } catch(e){}
   applyTheme(saved);
 })();
 function applyTheme(mode){
   document.documentElement.setAttribute("data-theme", mode==="dark"?"dark":"light");
   const btn = document.getElementById("themeToggle");
-  if(btn) btn.textContent = (mode==="dark") ? "☀️" : "🌙";
+  if(btn) btn.innerHTML = (mode==="dark") ? '<i class="ti ti-sun"></i>' : '<i class="ti ti-moon"></i>';
 }
 document.getElementById("themeToggle").addEventListener("click", ()=>{
   const cur = document.documentElement.getAttribute("data-theme")==="dark" ? "dark" : "light";
@@ -728,7 +741,7 @@ function renderLabor(data, dateParam){
   if(data.scheduleMissing){
     // no schedule data for this day (Connecteam no longer has it / none published)
     document.getElementById("schedPayVal").textContent = "—";
-    vEl.textContent = "No schedule data";
+    vEl.innerHTML = '<i class="ti ti-calendar-off"></i> No schedule data';
     vEl.className = "labor-variance v-on";
   } else {
     const scheduled = (data.sched && typeof data.sched.scheduledPay==="number") ? data.sched.scheduledPay : 0;
@@ -737,16 +750,16 @@ function renderLabor(data, dateParam){
     const diff = actual - scheduled;
     if(isFuture){
       // future day: nothing punched yet — "Actual" is just what's happened so far (usually $0)
-      vEl.textContent = "Upcoming — planned $" + scheduled.toFixed(2);
+      vEl.innerHTML = '<i class="ti ti-clock"></i> Upcoming — planned $' + scheduled.toFixed(2);
       vEl.className = "labor-variance v-on";
     } else if(Math.abs(diff) < 0.01){
-      vEl.textContent = "On budget";
+      vEl.innerHTML = '<i class="ti ti-equal"></i> On budget';
       vEl.className = "labor-variance v-on";
     } else if(diff < 0){
-      vEl.textContent = "Under by $" + Math.abs(diff).toFixed(2);
+      vEl.innerHTML = '<i class="ti ti-trending-down"></i> Under by $' + Math.abs(diff).toFixed(2);
       vEl.className = "labor-variance v-under";
     } else {
-      vEl.textContent = "Over by $" + diff.toFixed(2);
+      vEl.innerHTML = '<i class="ti ti-trending-up"></i> Over by $' + diff.toFixed(2);
       vEl.className = "labor-variance v-over";
     }
   }
@@ -774,11 +787,22 @@ function renderChart(hours, names){
   for(let v=top; v>=0; v-=10){ axisHtml += `<span>$${v}</span>`; }
   axis.innerHTML = axisHtml;
 
+  // average across hours that actually had labor — the reference line
+  const worked = slice.filter(v=>v>0);
+  const avg = worked.length ? worked.reduce((a,b)=>a+b,0)/worked.length : 0;
+
   let bars = "";
   for(let h=startH; h<=endH; h++){
     const val = hours[h]||0;
     const pct = top>0 ? Math.round((val/top)*100) : 0;
-    bars += `<div class="lc-bar-wrap" data-h="${h}"><div class="lc-bar ${val<=0?'empty':''}" style="height:${val<=0?2:Math.max(pct,3)}%"></div></div>`;
+    // teal above the average, muted below — "was this hour busy?" at a glance
+    const cls = val<=0 ? 'empty' : (val>=avg ? 'above' : 'below');
+    bars += `<div class="lc-bar-wrap" data-h="${h}"><div class="lc-bar ${cls}" style="height:${val<=0?2:Math.max(pct,3)}%"></div></div>`;
+  }
+  // dashed average reference line, positioned by value
+  if(avg > 0 && top > 0){
+    const avgPct = Math.min(99, (avg/top)*100);
+    bars += `<div class="lc-avgline" style="bottom:${avgPct.toFixed(1)}%"><span>avg $${Math.round(avg)}</span></div>`;
   }
   box.innerHTML = bars;
 
@@ -799,7 +823,13 @@ function renderChart(hours, names){
       w.classList.add("sel");
       const val = hours[h]||0;
       const who = (names[h]&&names[h].length) ? names[h].join(", ") : "Nobody";
-      detail.innerHTML = `${hourLabel(h)} · <span style="color:var(--orange)">$${val.toFixed(2)}</span> · <span class="muted">${esc(who)}</span>`;
+      let vs = "";
+      if(avg > 0 && val > 0){
+        const pctVs = Math.round((val-avg)/avg*100);
+        const col = pctVs >= 0 ? "var(--teal)" : "var(--muted)";
+        vs = ` · <span style="color:${col}">${pctVs>=0?"+":""}${pctVs}% vs avg</span>`;
+      }
+      detail.innerHTML = `<b>${hourLabel(h)}</b> · <span style="color:var(--amber)">$${val.toFixed(2)}</span>${vs}<br><span class="muted">${esc(who)}</span>`;
     });
   });
 }
