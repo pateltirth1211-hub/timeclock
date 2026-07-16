@@ -256,6 +256,19 @@
   .labor-daylabel input[type=date]{ width:auto; min-height:32px; padding:5px 10px; font-size:12px; border-radius:9px; text-align:center }
   .labor-cost-big{ font-size:40px; font-weight:800; letter-spacing:-1px; line-height:1 }
   .labor-cost-sub{ font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:4px }
+  /* voided (soft-deleted) shifts — visible but clearly not counting */
+  .shift-card.sc-voided{ opacity:.5 }
+  .shift-card.sc-voided .val{ text-decoration:line-through }
+  .void-badge{ display:inline-block; margin-left:6px; background:var(--red-bg); color:var(--red);
+    font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; letter-spacing:.4px;
+    vertical-align:1px }
+  .btn-void{ width:100%; margin-top:10px; background:transparent; color:var(--red);
+    border:1px solid var(--red) }
+  .btn-void:active{ background:var(--red-bg) }
+  .btn-unvoid{ width:100%; margin-top:10px; background:transparent; color:var(--teal);
+    border:1px solid var(--teal) }
+  .btn-unvoid:active{ background:var(--teal-bg) }
+
   /* dynamic breaks editor (Edit shift modal) */
   .brk-row{ display:flex; align-items:center; gap:7px; margin-bottom:7px }
   .brk-row input[type=time]{ flex:1; min-width:0 }
@@ -1304,9 +1317,10 @@ function renderSheets(allRows){
     const list = byName[name];
     const rate = rateForNameLocal(name);
 
-    // weekly hours + OT for this person
+    // weekly hours + OT for this person (voided shifts contribute nothing)
     const weekHrs = {};
     list.forEach(r=>{
+      if(r.voided) return;
       const h = (r.hours===""||r.hours==null)?0:Number(r.hours);
       weekHrs[r.week] = (weekHrs[r.week]||0) + h;
     });
@@ -1323,15 +1337,17 @@ function renderSheets(allRows){
       list.forEach(r=>{ (byWeek[r.week]=byWeek[r.week]||[]).push(r); });
       Object.keys(byWeek).sort().forEach(wk=>{
         const wlist = byWeek[wk];
-        const wHrs = weekHrs[wk];
-        const wOt = weekOt[wk];
+        const wHrs = weekHrs[wk] || 0;
+        const wOt = weekOt[wk] || 0;
         const wOtPrem = Math.round(0.5*rate*wOt*100)/100;
         let wPay = 0;
         html += `<div class="week-head${wOt>0?' ot':''}">Week of ${weekLabel(wk)}${wOt>0?'<span class="ot-badge">OT</span>':''}</div>`;
         wlist.forEach(r=>{
-          const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
-          wPay += pay;
-          html += shiftCard(r, wOt>0);
+          if(!r.voided){
+            const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
+            wPay += pay;
+          }
+          html += shiftCard(r, wOt>0);   // voided cards still render, greyed
         });
         sub += wHrs; subPay += wPay;
         if(wOt>0){ subOtHrs += wOt; subOtPrem += wOtPrem; }
@@ -1344,9 +1360,11 @@ function renderSheets(allRows){
     } else {
       // single week: flat list
       list.forEach(r=>{
-        const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
-        subPay += pay;
-        html += shiftCard(r, weekOt[r.week]>0);
+        if(!r.voided){
+          const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
+          subPay += pay;
+        }
+        html += shiftCard(r, weekOt[r.week]>0);   // voided cards still render, greyed
       });
       sub = Object.values(weekHrs).reduce((a,b)=>a+b,0);
       Object.keys(weekOt).forEach(w=>{ if(weekOt[w]>0){ subOtHrs += weekOt[w]; subOtPrem += 0.5*rate*weekOt[w]; } });
@@ -1390,10 +1408,10 @@ function shiftCard(r, otWeek){
     ? brkList.join("<br>") + (r.breakMins ? ` <span class="muted">(${r.breakMins}m)</span>` : "")
     : "—";
   const pic = r.photo ? `<img class="sc-photo" src="${r.photo}" data-full="${r.photo}">` : `<div class="sc-noimg">—</div>`;
-  return `<div class="shift-card${otWeek?' ot-week':''}">
+  return `<div class="shift-card${otWeek?' ot-week':''}${r.voided?' sc-voided':''}">
     ${pic}
     <div class="sc-body">
-      <div class="sc-date">${esc(r.date)}</div>
+      <div class="sc-date">${esc(r.date)}${r.voided?' <span class="void-badge">VOID</span>':''}</div>
       <div class="sc-grid">
         <div><span class="lbl">In</span><span class="val">${esc(cleanTime(r.clockIn)||"—")}</span></div>
         <div><span class="lbl">Out</span><span class="val">${esc(cleanTime(r.clockOut)||"—")}</span></div>
@@ -1427,6 +1445,7 @@ document.getElementById("exportCsv").addEventListener("click", ()=>{
   const head = ["Employee","Date","Clock In","Breaks","Break Mins","Clock Out","Hours","Pay","Flag"];
   const lines = [head.join(",")];
   lastRows.forEach(r=>{
+    if(r.voided) return;                     // voided shifts never reach payroll
     // every break, not just the first (legacy rows fall back to the single pair)
     let brk = "";
     if(Array.isArray(r.breaks) && r.breaks.length){
@@ -1503,13 +1522,39 @@ function openEdit(row){
     <div class="btn-row" style="margin-top:8px">
       <button class="btn btn-primary" id="saveEdit">Save</button>
       <button class="btn btn-dark" id="closeModal">Cancel</button>
-    </div>`;
+    </div>
+    ${r.voided
+      ? `<button class="btn btn-unvoid" id="voidShift"><i class="ti ti-rotate"></i> Undo void — count this shift again</button>`
+      : `<button class="btn btn-void" id="voidShift"><i class="ti ti-ban"></i> Void shift</button>`}`;
   document.getElementById("overlay").classList.add("show");
   renderBreakRows();
   document.getElementById("addBreak").addEventListener("click", ()=>{
     editBreaks.push({ out:"", in:"" }); renderBreakRows();
   });
   document.getElementById("closeModal").addEventListener("click", closeModal);
+
+  document.getElementById("voidShift").addEventListener("click", async ()=>{
+    const btn = document.getElementById("voidShift");
+    const hrs = (r.hours===""||r.hours==null) ? "—" : Number(r.hours).toFixed(2);
+    const pay = (r.pay===""||r.pay==null) ? "—" : "$"+Number(r.pay).toFixed(2);
+    if(!r.voided){
+      // name exactly what's being removed, so this can't happen by accident
+      if(!confirm(`Void ${r.name}'s ${r.date} shift (${hrs} hrs, ${pay})?\n\nIt stays in the records but won't count toward hours or pay. You can undo this.`)) return;
+    }
+    btn.innerHTML = '<span class="spinner"></span>Working…'; btn.disabled = true;
+    const res = await api({action:"voidPunch", pin:adminPin, row:r.row, undo:!!r.voided, note:val("eNote")});
+    if(res.ok){
+      toast(res.message,"ok"); closeModal();
+      if(lastRows.length) loadSheets();
+      if(!document.getElementById("actionsTab").classList.contains("hidden")) loadActions();
+    } else {
+      toast(res.error||"Error","err");
+      btn.disabled = false;
+      btn.innerHTML = r.voided ? '<i class="ti ti-rotate"></i> Undo void — count this shift again'
+                               : '<i class="ti ti-ban"></i> Void shift';
+    }
+  });
+
   document.getElementById("saveEdit").addEventListener("click", async ()=>{
     const btn = document.getElementById("saveEdit");
     // guard: a closed break must end after it starts
