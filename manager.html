@@ -256,6 +256,20 @@
   .labor-daylabel input[type=date]{ width:auto; min-height:32px; padding:5px 10px; font-size:12px; border-radius:9px; text-align:center }
   .labor-cost-big{ font-size:40px; font-weight:800; letter-spacing:-1px; line-height:1 }
   .labor-cost-sub{ font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:4px }
+  /* dynamic breaks editor (Edit shift modal) */
+  .brk-row{ display:flex; align-items:center; gap:7px; margin-bottom:7px }
+  .brk-row input[type=time]{ flex:1; min-width:0 }
+  .brk-dash{ color:var(--muted); flex-shrink:0 }
+  .brk-del{ flex-shrink:0; width:32px; height:32px; border-radius:8px; border:1px solid var(--line);
+    background:var(--card2); color:var(--red); font-size:15px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; -webkit-appearance:none; appearance:none }
+  .brk-del:active{ transform:scale(.94) }
+  .brk-add{ width:100%; padding:8px; border-radius:8px; border:1px dashed var(--barlow);
+    background:var(--card2); color:var(--amber); font-size:13px; font-weight:600; cursor:pointer;
+    -webkit-appearance:none; appearance:none; touch-action:manipulation }
+  .brk-add:active{ background:var(--border2) }
+  .sc-breaks{ grid-column:1 / -1 }
+
   /* labor hero — Actual is the headline, variance the verdict, Scheduled the context */
   .labor-hero{ background:var(--card2); border-radius:var(--radius-lg); padding:16px 14px;
     max-width:340px; margin:10px auto 0; text-align:center }
@@ -1364,8 +1378,17 @@ function renderSheets(allRows){
 function shiftCard(r, otWeek){
   const hrs = (r.hours===""||r.hours==null)?0:Number(r.hours);
   const pay = (r.pay===""||r.pay==null)?0:Number(r.pay);
-  const bo = cleanTime(r.breakOut), bi = cleanTime(r.breakIn);
-  const brk = (bo||bi) ? `${bo||"?"}–${bi||"?"}` : "—";
+  // breaks: new multi-break array, else fall back to the legacy single pair
+  let brkList = [];
+  if(Array.isArray(r.breaks) && r.breaks.length){
+    brkList = r.breaks.map(b=> `${esc(cleanTime(b.out))||"?"}–${esc(cleanTime(b.in))||"?"}`);
+  } else {
+    const bo = esc(cleanTime(r.breakOut)), bi = esc(cleanTime(r.breakIn));
+    if(bo||bi) brkList = [`${bo||"?"}–${bi||"?"}`];
+  }
+  const brk = brkList.length
+    ? brkList.join("<br>") + (r.breakMins ? ` <span class="muted">(${r.breakMins}m)</span>` : "")
+    : "—";
   const pic = r.photo ? `<img class="sc-photo" src="${r.photo}" data-full="${r.photo}">` : `<div class="sc-noimg">—</div>`;
   return `<div class="shift-card${otWeek?' ot-week':''}">
     ${pic}
@@ -1374,7 +1397,7 @@ function shiftCard(r, otWeek){
       <div class="sc-grid">
         <div><span class="lbl">In</span><span class="val">${esc(cleanTime(r.clockIn)||"—")}</span></div>
         <div><span class="lbl">Out</span><span class="val">${esc(cleanTime(r.clockOut)||"—")}</span></div>
-        <div><span class="lbl">Break</span><span class="val">${esc(brk)}</span></div>
+        <div class="sc-breaks"><span class="lbl">Break${brkList.length>1?"s":""}</span><span class="val">${brk}</span></div>
         <div><span class="lbl">Hours</span><span class="val">${hrs?hrs.toFixed(2):"—"}</span></div>
         <div><span class="lbl">Pay</span><span class="val">${pay?"$"+pay.toFixed(2):"—"}</span></div>
       </div>
@@ -1401,10 +1424,18 @@ function rateForNameLocal(name){ return rateCache[name]||0; }
 /* ---- CSV export ---- */
 document.getElementById("exportCsv").addEventListener("click", ()=>{
   if(!lastRows.length){ toast("Load a date range first","err"); return; }
-  const head = ["Employee","Date","Clock In","Break Out","Break In","Clock Out","Hours","Pay","Flag"];
+  const head = ["Employee","Date","Clock In","Breaks","Break Mins","Clock Out","Hours","Pay","Flag"];
   const lines = [head.join(",")];
   lastRows.forEach(r=>{
-    lines.push([r.name, r.date, cleanTime(r.clockIn), cleanTime(r.breakOut), cleanTime(r.breakIn), cleanTime(r.clockOut), r.hours, r.pay, r.flag]
+    // every break, not just the first (legacy rows fall back to the single pair)
+    let brk = "";
+    if(Array.isArray(r.breaks) && r.breaks.length){
+      brk = r.breaks.map(b=> `${cleanTime(b.out)||"?"}-${cleanTime(b.in)||"?"}`).join("; ");
+    } else if(r.breakOut || r.breakIn){
+      brk = `${cleanTime(r.breakOut)||"?"}-${cleanTime(r.breakIn)||"?"}`;
+    }
+    lines.push([r.name, r.date, cleanTime(r.clockIn), brk, (r.breakMins==null?"":r.breakMins),
+                cleanTime(r.clockOut), r.hours, r.pay, r.flag]
       .map(x=>`"${String(x==null?"":x).replace(/"/g,'""')}"`).join(","));
   });
   const blob = new Blob([lines.join("\n")], {type:"text/csv"});
@@ -1416,16 +1447,57 @@ document.getElementById("exportCsv").addEventListener("click", ()=>{
 });
 
 /* ---- edit punch modal ---- */
+/* rows of the dynamic breaks editor, held as 24h strings: [{out,in}, ...] */
+let editBreaks = [];
+
+function renderBreakRows(){
+  const box = document.getElementById("eBreaks");
+  if(!box) return;
+  if(!editBreaks.length){
+    box.innerHTML = '<div class="muted" style="font-size:13px;padding:2px 0 6px">No breaks recorded.</div>';
+  } else {
+    box.innerHTML = editBreaks.map((b,i)=>`
+      <div class="brk-row" data-i="${i}">
+        <input type="time" class="brk-out" value="${b.out||""}">
+        <span class="brk-dash">–</span>
+        <input type="time" class="brk-in" value="${b.in||""}">
+        <button class="brk-del" data-del="${i}" title="Remove break"><i class="ti ti-x"></i></button>
+      </div>`).join("");
+  }
+  const rows = box.querySelectorAll(".brk-row");
+  rows.forEach(rw=>{
+    const i = Number(rw.dataset.i);
+    rw.querySelector(".brk-out").addEventListener("change", e=>{ editBreaks[i].out = e.target.value; });
+    rw.querySelector(".brk-in").addEventListener("change", e=>{ editBreaks[i].in = e.target.value; });
+  });
+  box.querySelectorAll("[data-del]").forEach(b=>{
+    b.addEventListener("click", ()=>{ editBreaks.splice(Number(b.dataset.del),1); renderBreakRows(); });
+  });
+}
+
 function openEdit(row){
   const r = lastRows.find(x=> String(x.row)===String(row));
   if(!r) return;
+
+  // seed the editor from the row's breaks (new `breaks` array, or a legacy single pair)
+  if(Array.isArray(r.breaks) && r.breaks.length){
+    editBreaks = r.breaks.map(b=> ({ out:to24(b.out), in:to24(b.in) }));
+  } else if(r.breakOut){
+    editBreaks = [{ out:to24(r.breakOut), in:to24(r.breakIn) }];
+  } else {
+    editBreaks = [];
+  }
+
   const m = document.getElementById("modalBox");
   m.innerHTML = `
     <h3>Edit shift — ${esc(r.name)}</h3>
     <p class="muted" style="margin-top:-8px;font-size:13px">${esc(r.date)}. Tap a field to pick the time.</p>
     <div class="field"><label>Clock In</label><input type="time" id="eIn" value="${to24(r.clockIn)}"></div>
-    <div class="field"><label>Break Out</label><input type="time" id="eBo" value="${to24(r.breakOut)}"></div>
-    <div class="field"><label>Break In</label><input type="time" id="eBi" value="${to24(r.breakIn)}"></div>
+    <div class="field">
+      <label>Breaks</label>
+      <div id="eBreaks"></div>
+      <button class="brk-add" id="addBreak"><i class="ti ti-plus"></i> Add break</button>
+    </div>
     <div class="field"><label>Clock Out</label><input type="time" id="eOut" value="${to24(r.clockOut)}"></div>
     <div class="field"><label>Note (optional)</label><input type="text" id="eNote" placeholder="e.g. forgot to punch out"></div>
     <div class="btn-row" style="margin-top:8px">
@@ -1433,12 +1505,26 @@ function openEdit(row){
       <button class="btn btn-dark" id="closeModal">Cancel</button>
     </div>`;
   document.getElementById("overlay").classList.add("show");
+  renderBreakRows();
+  document.getElementById("addBreak").addEventListener("click", ()=>{
+    editBreaks.push({ out:"", in:"" }); renderBreakRows();
+  });
   document.getElementById("closeModal").addEventListener("click", closeModal);
   document.getElementById("saveEdit").addEventListener("click", async ()=>{
     const btn = document.getElementById("saveEdit");
+    // guard: a closed break must end after it starts
+    for(const b of editBreaks){
+      if(b.out && b.in && b.in <= b.out){
+        toast("A break ends before it starts — check the times","err"); return;
+      }
+    }
+    // drop empty rows, convert back to "h:mm AM" for the sheet
+    const breaks = editBreaks.filter(b=> b.out)
+      .map(b=> ({ out: to12(b.out), in: b.in ? to12(b.in) : "" }));
     btn.innerHTML = '<span class="spinner"></span>Saving…'; btn.disabled = true;
     const res = await api({action:"editPunch", pin:adminPin, row:r.row,
-      clockIn:from24("eIn"), breakOut:from24("eBo"), breakIn:from24("eBi"), clockOut:from24("eOut"),
+      clockIn:from24("eIn"), clockOut:from24("eOut"),
+      breaks: JSON.stringify(breaks),
       note:val("eNote")});
     if(res.ok){
       toast(res.message,"ok"); closeModal();
@@ -1448,6 +1534,15 @@ function openEdit(row){
     }
     else { toast(res.error||"Error","err"); btn.innerHTML="Save"; btn.disabled=false; }
   });
+}
+/* "23:25" -> "11:25 PM"  (inverse of to24) */
+function to12(s){
+  const m = String(s||"").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return "";
+  let hh = parseInt(m[1],10); const mm = m[2];
+  const ap = hh>=12 ? "PM" : "AM";
+  hh = hh%12; if(hh===0) hh = 12;
+  return hh+":"+mm+" "+ap;
 }
 function val(id){ return document.getElementById(id).value.trim(); }
 
