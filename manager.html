@@ -47,6 +47,19 @@
 
   .card{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:0 6px 24px rgba(0,0,0,.05); margin-bottom:16px}
 
+  /* subtle entrance for cards as they render — feels responsive, not "popped in" */
+  @keyframes cardIn{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
+  .shift-card, .prob-card, .sched-card, .emp-panel, .live-row{ animation:cardIn .28s ease both }
+  @media (prefers-reduced-motion: reduce){
+    .shift-card, .prob-card, .sched-card, .emp-panel, .live-row{ animation:none }
+  }
+
+  /* friendly empty state */
+  .empty-state{ text-align:center; padding:34px 18px; color:var(--muted) }
+  .empty-state .es-icon{ font-size:34px; color:var(--teal); opacity:.85; margin-bottom:8px; display:block }
+  .empty-state .es-title{ font-size:15px; font-weight:600; color:var(--ink); margin-bottom:3px }
+  .empty-state .es-sub{ font-size:13px; color:var(--muted) }
+
   /* login */
   .login{max-width:340px; margin:40px auto 0}
   .pin-display{display:flex; justify-content:center; gap:14px; margin:6px 0 22px}
@@ -360,11 +373,11 @@
   .sched-sub{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
     margin:18px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line) }
   .sched-card{ border:1px solid var(--line); border-radius:14px; padding:13px 14px; margin-bottom:9px; border-left:4px solid var(--line) }
-  .sched-card.s-late{ border-left-color:#c47a16 }
-  .sched-card.s-early{ border-left-color:#cb6a1e }
-  .sched-card.s-noshow{ border-left-color:#c0392b }
+  .sched-card.s-late{ border-left-color:var(--amber) }
+  .sched-card.s-early{ border-left-color:var(--amber-d) }
+  .sched-card.s-noshow{ border-left-color:var(--red) }
   .sched-card.s-unsched{ border-left-color:var(--blue) }
-  .sched-card.s-upcoming{ border-left-color:#5b4b9e }
+  .sched-card.s-upcoming{ border-left-color:var(--blue) }
   .sched-card.s-ontime{ border-left-color:var(--teal) }
   .sched-card.s-done{ border-left-color:var(--teal) }
   .sched-row1{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px }
@@ -374,10 +387,10 @@
   .sched-times{ display:flex; gap:18px; font-size:13px }
   .sched-times .lbl{ color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.3px; display:block; margin-bottom:1px }
   .sched-times .val{ font-weight:700 }
-  .sched-times .val.miss{ color:#c0392b; font-weight:700 }
+  .sched-times .val.miss{ color:var(--red); font-weight:700 }
   .sched-delta{ font-size:12px; font-weight:700; margin-top:5px }
-  .sched-delta.late{ color:#c47a16 }
-  .sched-delta.early{ color:#cb6a1e }
+  .sched-delta.late{ color:var(--amber) }
+  .sched-delta.early{ color:var(--amber-d) }
   .sched-empty{ text-align:center; color:var(--muted); font-size:14px; padding:24px 0 }
 
   /* actions tab */
@@ -385,14 +398,14 @@
   .actions-sub{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
     margin:6px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line) }
   .prob-card{ border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; border-left:4px solid var(--orange) }
-  .prob-card.attention{ border-left-color:#c0392b }
+  .prob-card.attention{ border-left-color:var(--red) }
   .prob-top{ display:flex; justify-content:space-between; gap:8px; margin-bottom:4px }
   .prob-who{ font-weight:800; font-size:15px }
   .prob-type{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; padding:3px 8px; border-radius:999px; white-space:nowrap; height:fit-content }
   .prob-type.fix{ background:var(--teal-bg); color:var(--teal) }
   .prob-type.att{ background:var(--red-bg); color:var(--red) }
-  .prob-card.v-noshow{ border-left-color:#c0392b }
-  .prob-card.v-late{ border-left-color:#c47a16 }
+  .prob-card.v-noshow{ border-left-color:var(--red) }
+  .prob-card.v-late{ border-left-color:var(--amber) }
   .prob-type.noshow{ background:var(--red-bg); color:var(--red) }
   .prob-type.late{ background:var(--amber-bg); color:var(--amber) }
   .prob-issue{ font-size:14px; margin:6px 0 2px }
@@ -402,7 +415,6 @@
   .btn-accept{ background:var(--green); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:800; font-size:14px; cursor:pointer; flex:1 }
   .btn-deny{ background:var(--card); color:var(--muted); border:1px solid var(--line); border-radius:10px; padding:10px 16px; font-weight:700; font-size:14px; cursor:pointer; flex:1 }
   .btn-fixit{ background:var(--black); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-weight:800; font-size:14px; cursor:pointer; flex:1 }
-  .actions-ok{ text-align:center; color:var(--muted); padding:20px 10px; font-size:14px }
 
   /* expandable history rows */
   .hist-row{ border-bottom:1px solid var(--line); padding:12px 2px; cursor:pointer }
@@ -921,10 +933,10 @@ function scheduleBadgeFor(p, schedByName, unschedByName){
     if(p.status==="AUTO_OUT" && (status==="LEFT_EARLY" || status==="DONE")){
       status = (match.minsLate ? "LATE" : "ON_TIME");
     }
-    if(status==="ON_TIME") return `<span class="ot ot-ontime">✓ On time</span>`;
-    if(status==="DONE")    return `<span class="ot ot-ontime">✓ On time</span>`;
-    if(status==="LATE")    return `<span class="ot ot-late">⚠ ${match.minsLate?('In '+match.minsLate+' min late'):'Late'}</span>`;
-    if(status==="LEFT_EARLY") return `<span class="ot ot-early">↩ ${match.minsEarly?('Out '+match.minsEarly+' min early'):'Left early'}</span>`;
+    if(status==="ON_TIME") return `<span class="ot ot-ontime"><i class="ti ti-check"></i> On time</span>`;
+    if(status==="DONE")    return `<span class="ot ot-ontime"><i class="ti ti-check"></i> On time</span>`;
+    if(status==="LATE")    return `<span class="ot ot-late"><i class="ti ti-alert-triangle"></i> ${match.minsLate?('In '+match.minsLate+' min late'):'Late'}</span>`;
+    if(status==="LEFT_EARLY") return `<span class="ot ot-early"><i class="ti ti-arrow-back-up"></i> ${match.minsEarly?('Out '+match.minsEarly+' min early'):'Left early'}</span>`;
     // NO_SHOW/UPCOMING shouldn't occur for someone who punched; ignore
     return "";
   }
@@ -1072,10 +1084,10 @@ function renderSchedule(r, dateParam){
   // count pills
   const c = r.counts || {};
   const pills = [];
-  if(c.onTime)     pills.push(`<span class="sched-count sc-ontime">✓ ${c.onTime} on time</span>`);
-  if(c.late)       pills.push(`<span class="sched-count sc-late">⚠ ${c.late} late</span>`);
-  if(c.leftEarly)  pills.push(`<span class="sched-count sc-early">↩ ${c.leftEarly} left early</span>`);
-  if(c.noShow)     pills.push(`<span class="sched-count sc-noshow">✗ ${c.noShow} no-show</span>`);
+  if(c.onTime)     pills.push(`<span class="sched-count sc-ontime"><i class="ti ti-check"></i> ${c.onTime} on time</span>`);
+  if(c.late)       pills.push(`<span class="sched-count sc-late"><i class="ti ti-alert-triangle"></i> ${c.late} late</span>`);
+  if(c.leftEarly)  pills.push(`<span class="sched-count sc-early"><i class="ti ti-arrow-back-up"></i> ${c.leftEarly} left early</span>`);
+  if(c.noShow)     pills.push(`<span class="sched-count sc-noshow"><i class="ti ti-x"></i> ${c.noShow} no-show</span>`);
   if(c.done)       pills.push(`<span class="sched-count sc-done">${c.done} done</span>`);
   if(c.upcoming)   pills.push(`<span class="sched-count sc-upcoming">○ ${c.upcoming} upcoming</span>`);
   if(c.unscheduled)pills.push(`<span class="sched-count sc-unsched">+ ${c.unscheduled} unscheduled</span>`);
@@ -1299,7 +1311,7 @@ function renderSheets(allRows){
   const box = document.getElementById("sheetsResult");
   const filter = document.getElementById("empFilter").value;
   const rows = filter ? allRows.filter(r=>r.name===filter) : allRows;
-  if(!rows.length){ box.innerHTML = '<div class="row-empty">No shifts in this range.</div>'; return; }
+  if(!rows.length){ box.innerHTML = '<div class="empty-state"><i class="ti ti-calendar-off es-icon" style="color:var(--muted)"></i><div class="es-title">No shifts in this range</div><div class="es-sub">Try a different date range or employee.</div></div>'; return; }
 
   // does the data span more than one week? -> weekly grouping
   const distinctWeeks = {};
@@ -1626,7 +1638,7 @@ async function loadProblems(){
   try{
     const r = await api({action:"getProblems", pin:adminPin});
     if(!r.ok){ box.innerHTML = '<div class="row-empty">'+esc(r.error||"Error")+'</div>'; return; }
-    if(!r.problems.length){ box.innerHTML = '<div class="actions-ok">✓ No issues found. Everything looks clean.</div>'; return; }
+    if(!r.problems.length){ box.innerHTML = '<div class="empty-state"><i class="ti ti-circle-check es-icon"></i><div class="es-title">All caught up</div><div class="es-sub">No issues to review right now.</div></div>'; return; }
     box.innerHTML = "";
     r.problems.forEach(p=>{
       const autofix = p.type==="AUTOFIX";
@@ -1852,7 +1864,7 @@ function openEmp(e){
       <button class="btn btn-primary" id="saveEmp">Save</button>
       <button class="btn btn-dark" id="closeModal">Cancel</button>
     </div>
-    ${isNew ? '' : '<button class="btn" id="deactivateEmp" style="margin-top:10px;width:100%;background:#c0392b;color:#fff">Deactivate &amp; remove from clock</button>'}`;
+    ${isNew ? '' : '<button class="btn" id="deactivateEmp" style="margin-top:10px;width:100%;background:var(--red);color:#fff">Deactivate &amp; remove from clock</button>'}`;
   document.getElementById("overlay").classList.add("show");
   document.getElementById("closeModal").addEventListener("click", closeModal);
   const phoneInput = document.getElementById("ePhone");
