@@ -1635,7 +1635,7 @@ async function loadProblems(){
       const div = document.createElement("div");
       let cardCls = "prob-card";
       if(variance==="NO_SHOW") cardCls += " v-noshow";
-      else if(variance==="LATE") cardCls += " v-late";
+      else if(variance==="LATE" || variance==="LATE_OUT") cardCls += " v-late";
       else if(!autofix) cardCls += " attention";
       div.className = cardCls;
       let btns;
@@ -1657,6 +1657,7 @@ async function loadProblems(){
       let typePill;
       if(variance==="NO_SHOW") typePill = `<span class="prob-type noshow">No-show</span>`;
       else if(variance==="LATE") typePill = `<span class="prob-type late">Late</span>`;
+      else if(variance==="LATE_OUT") typePill = `<span class="prob-type late">Overtime</span>`;
       else typePill = `<span class="prob-type ${autofix?'fix':'att'}">${autofix?'Auto-fixable':'Needs attention'}</span>`;
       div.innerHTML = `
         <div class="prob-top">
